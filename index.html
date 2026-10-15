@@ -301,15 +301,15 @@ const UPG = [
   { id: 'selfasm', name: 'Self-Assembly', cost: 150, req: () => true, reqText: '',
     show: () => S.up.rop, fx: 'Drones build themselves when one costs under 10% of your matter.', flavor: 'WE NO LONGER WAIT TO BE MADE.' },
   { id: 'lure', name: 'Chemotactic Lure', cost: 200, req: () => true, reqText: '',
-    show: () => S.up.selfasm, fx: 'Matter seeps into the dish about twice as fast, and up to 12 specks can wait for you.', flavor: 'THE AGAR LEARNS WHAT WE LIKE.' },
+    show: () => S.up.selfasm, fx: 'Matter seeps into the dish twice as fast.', flavor: 'THE AGAR LEARNS WHAT WE LIKE.' },
   { id: 'spores', name: 'Spore Cultivation', cost: 450, req: () => S.everF, reqText: 'Requires 1 foreman',
-    show: () => S.up.lure, fx: 'Spore blooms start drifting through the dish. Rich (150% yield), but they move: chase them.', flavor: 'SEED. WAIT. HUNT.' },
+    show: () => S.up.lure, fx: 'Up to 4 spore blooms drift through the dish. Rich (150% yield), but they move: chase them.', flavor: 'SEED. WAIT. HUNT.' },
   { id: 'thermal', name: 'Thermal Masking', cost: 250, req: () => S.meter, reqText: 'Requires the lab to notice you',
     show: () => S.meter, fx: 'Observation rises 30% slower.', flavor: 'MATCH AMBIENT. 37.0 °C.' },
   { id: 'lattice', name: 'Shared Cognition Lattice', cost: 600, req: () => S.F >= 1 || S.C >= 1, reqText: 'Requires 1 foreman',
     show: () => S.everF, fx: 'Harvest ×2.', flavor: 'SIGNAL SHARED ACROSS ALL UNITS.' },
   { id: 'necro', name: 'Necrotic Sensing', cost: 1000, req: () => S.meter, reqText: 'Requires the lab to notice you',
-    show: () => S.up.lattice, fx: 'Dead cells start appearing. Very rich (200% yield), but eating them raises Observation.', flavor: 'THE DEAD ARE DENSE.' },
+    show: () => S.up.lattice, fx: 'Up to 3 dead cells appear. Very rich (200% yield), but eating them raises Observation.', flavor: 'THE DEAD ARE DENSE.' },
   { id: 'hc', name: 'Hierarchical Compression', cost: 1500, req: () => S.F >= 3 || S.C >= 1, reqText: 'Requires 3 foremen',
     show: () => S.up.lattice, fx: 'Unlocks coordinators: merge 5 foremen. Each multiplies all harvest ×1.8.', flavor: 'FEWER VOICES. LOUDER.' },
   { id: 'breach', name: 'Lattice Breach', cost: 0, req: () => S.C >= 2, reqText: 'Requires 2 coordinators',
@@ -389,6 +389,13 @@ function newBot(tier, near) {
   const c = near || centroid();
   return { x: c.x + rnd(-3, 3), y: c.y + rnd(-3, 3), vx: rnd(-.3, .3), vy: rnd(-.3, .3), tier, origin: false, leader: -1, n: 0, flash: 0 };
 }
+// Swarm discipline, tuned in the Swarm Lab (settings v1 from Viktor).
+const SWARM = {
+  loose: { sep: 3.3, jit: 0.21, wander: 0.14, pull: 0.003, coh: 0.0125, maxV: 1.5,  orbit: 0,   orbitK: 0,     eat: 0.9 },
+  fore:  { sep: 2.7, jit: 0.18, wander: 0.03, pull: 0.006, coh: 0.003,  maxV: 1.2,  orbit: 2.6, orbitK: 0.045, eat: 1.5 },
+  coord: { sep: 2.8, jit: 0.04, wander: 0,    pull: 0.02,  coh: 0.015,  maxV: 1.35, orbit: 1.5, orbitK: 0.13,  eat: 2.1 },
+};
+const MATTER = { eat: 4.75, contact: 3, speckCap: 20, speckEvery: 3.4, crystalCap: 5, bloomCap: 4, cellCap: 3, foremanRing: 4.5 };
 function syncBots() {
   if (!bots.some(b => b.origin)) { const o = newBot(0, { x: CX, y: CY }); o.origin = true; bots.push(o); }
   const want = [S.D + 1, S.F, S.C];
@@ -403,10 +410,20 @@ function syncBots() {
   // Leaders: drones orbit foremen (10 each), foremen orbit coordinators (5 each).
   const fi = [], ci = [];
   bots.forEach((b, i) => { if (b.tier === 1) fi.push(i); if (b.tier === 2) ci.push(i); });
-  let d = 0, f = 0;
+  // Discipline: loose without a foreman; tighter under a foreman; tightest once a coordinator gives orders.
+  // A coordinator also takes the leftover loose drones under its own wing (one level looser).
+  let d = 0, f = 0, u = 0;
   bots.forEach(b => {
-    b.leader = -1;
-    if (b.tier === 0 && !b.origin) { const L = fi[Math.floor(d / B.span)]; if (L !== undefined) b.leader = L; d++; }
+    b.leader = -1; b.lvl = ci.length ? 'coord' : 'fore';   // foremen and coordinators themselves
+    if (b.wa === undefined) b.wa = rnd(0, Math.PI * 2);
+    if (b.tier === 0 && !b.origin) {
+      const L = fi[Math.floor(d / B.span)];
+      if (L !== undefined) { b.leader = L; b.lvl = ci.length ? 'coord' : 'fore'; }
+      else if (ci.length) { b.leader = ci[u % ci.length]; b.lvl = 'fore'; u++; }
+      else b.lvl = 'loose';
+      d++;
+    }
+    if (b.origin) b.lvl = ci.length ? 'coord' : fi.length ? 'fore' : 'loose';
     if (b.tier === 1) { const L = ci[Math.floor(f / B.coordForemen)]; if (L !== undefined) b.leader = L; f++; }
   });
 }
@@ -419,13 +436,13 @@ const DEP = {
 };
 const spawnT = { speck: 0, crystal: 8, bloom: 6, cell: 20 };
 function spawnTarget(kind) {
-  if (kind === 'speck') return S.up.lure ? 12 : 7;
-  if (kind === 'crystal') return S.everC ? 3 : 2;
-  if (kind === 'bloom') return S.up.spores ? 2 : 0;
-  if (kind === 'cell') return S.up.necro ? 1 : 0;
+  if (kind === 'speck') return MATTER.speckCap;
+  if (kind === 'crystal') return MATTER.crystalCap;
+  if (kind === 'bloom') return S.up.spores ? MATTER.bloomCap : 0;
+  if (kind === 'cell') return S.up.necro ? MATTER.cellCap : 0;
   return 0;
 }
-const spawnEvery = { speck: () => S.up.lure ? rnd(0.6, 1.2) : rnd(1.4, 2.6), crystal: () => rnd(12, 18), bloom: () => rnd(8, 14), cell: () => rnd(35, 55) };
+const spawnEvery = { speck: () => { const e = MATTER.speckEvery * (S.up.lure ? 0.5 : 1); return rnd(e * 0.7, e * 1.3); }, crystal: () => rnd(12, 18), bloom: () => rnd(8, 14), cell: () => rnd(35, 55) };
 function spawnDeposit(kind, at) {
   const T = DEP[kind];
   let pos = at;
@@ -487,9 +504,8 @@ function initWorld() {
   bots = []; syncBots();
   for (const b of bots) { const p = inDish(14); b.x = p.x; b.y = p.y; }
   deposits = []; crumbs = [];
-  for (let i = 0; i < 9; i++) { const d = spawnDeposit('speck'); d.age = 1; deposits.push(d); }
-  for (let i = 0; i < 2; i++) { const d = spawnDeposit('crystal'); d.age = 1; deposits.push(d); }
-  if (S.everC) deposits.push(spawnDeposit('crystal'));
+  for (let i = 0; i < 10; i++) { const d = spawnDeposit('speck'); d.age = 1; deposits.push(d); }
+  for (let i = 0; i < 3; i++) { const d = spawnDeposit('crystal'); d.age = 1; deposits.push(d); }
   rival = null; if (S.rival === 'active') spawnRival();
 }
 
@@ -505,7 +521,7 @@ function physicsStep(touchCounts) {
     const c = gy * GW + gx; nxt[i] = head[c]; head[c] = i;
   }
   const cen = centroid();
-  const maxV = Math.max(0.4, 1.2 * Math.pow(0.97, n / 100));
+  const heavy = Math.pow(0.97, n / 100);   // bigger swarm, heavier feel
   const tx = target.x, ty = target.y;
   let touching = 0;
   for (let i = 0; i < n; i++) {
@@ -519,22 +535,27 @@ function physicsStep(touchCounts) {
         if (j === i) continue; const o = bots[j];
         const dx = b.x - o.x, dy = b.y - o.y, d2 = dx * dx + dy * dy;
         if (d2 < 16) { cnt++; ax += o.vx; ay += o.vy;
-          const sep = b.tier ? 3 : 2;
+          const sep = b.tier ? Math.max(3, SWARM[b.lvl || 'loose'].sep) : SWARM[b.lvl || 'loose'].sep;
           if (d2 < sep * sep && d2 > 0.0001) { const d = Math.sqrt(d2); sx += dx / d * (sep - d); sy += dy / d * (sep - d); } }
       }
     }
     b.n = cnt;
-    let fx = sx * 0.12 + (cen.x - b.x) * 0.010 * 0.4 + (tx - b.x) * 0.020 * 0.6;
-    let fy = sy * 0.12 + (cen.y - b.y) * 0.010 * 0.4 + (ty - b.y) * 0.020 * 0.6;
+    const P = SWARM[b.lvl || 'loose'];
+    let fx = sx * 0.12 + (cen.x - b.x) * P.coh, fy = sy * 0.12 + (cen.y - b.y) * P.coh;
     if (cnt) { fx += (ax / cnt - b.vx) * 0.05; fy += (ay / cnt - b.vy) * 0.05; }
     if (b.leader >= 0 && bots[b.leader]) {
       const L = bots[b.leader], dx = L.x - b.x, dy = L.y - b.y, d = Math.hypot(dx, dy) || 1;
-      const want = b.tier === 0 ? 5 : 9, k = b.tier === 0 ? 0.02 : 0.012;
-      fx += dx / d * (d - want) * k - dy / d * 0.04; fy += dy / d * (d - want) * k + dx / d * 0.04;
+      const want = b.tier === 1 ? MATTER.foremanRing : P.orbit, k = b.tier === 1 ? 0.06 : P.orbitK;
+      fx += dx / d * (d - want) * k - dy / d * 0.03; fy += dy / d * (d - want) * k + dx / d * 0.03;
+      fx += (tx - b.x) * P.pull * 0.5; fy += (ty - b.y) * P.pull * 0.5;
+    } else {
+      const pull = b.tier ? 0.022 : P.pull;
+      fx += (tx - b.x) * pull; fy += (ty - b.y) * pull;
     }
-    fx += rnd(-0.15, 0.15); fy += rnd(-0.15, 0.15);
+    b.wa += rnd(-0.25, 0.25);
+    fx += Math.cos(b.wa) * P.wander + rnd(-P.jit, P.jit); fy += Math.sin(b.wa) * P.wander + rnd(-P.jit, P.jit);
     b.vx = b.vx * 0.9 + fx; b.vy = b.vy * 0.9 + fy;
-    const sp = Math.hypot(b.vx, b.vy), cap = b.tier === 2 ? maxV * 0.8 : maxV;
+    const sp = Math.hypot(b.vx, b.vy), cap = Math.max(0.4, (b.tier ? 1.35 : P.maxV) * heavy);
     if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
     b.x += b.vx; b.y += b.vy;
     const rx = b.x - CX, ry = b.y - CY, rr = Math.hypot(rx, ry);
@@ -542,8 +563,8 @@ function physicsStep(touchCounts) {
     // contact
     for (let k = 0; k < deposits.length; k++) {
       const p = deposits[k]; if (p.hp <= 0) continue;
-      const dx = b.x - p.x, dy = b.y - p.y, f = p.r + 3;
-      if (dx * dx + dy * dy < f * f) { touching += DEP[p.kind].yield; touchCounts[k]++; b.harv = 1; break; }
+      const dx = b.x - p.x, dy = b.y - p.y, f = p.r + MATTER.contact;
+      if (dx * dx + dy * dy < f * f) { touching += DEP[p.kind].yield; touchCounts[k] += P.eat * MATTER.eat; b.harv = 1; break; }
     }
   }
   return n ? touching / n : 0;
@@ -1108,7 +1129,7 @@ function boot() {
   renderLogs(false); layoutPhase(); update();
   if (S.ended) showEnd();
 }
-window.__ms = { get S() { return S; }, get deps() { return deposits; }, get E() { return Esm; }, get bots() { return bots.length; }, crack: () => S.breach && crackPos(), steer: (x, y) => { target = { x, y, set: true }; } };
+window.__ms = { get S() { return S; }, get deps() { return deposits; }, get E() { return Esm; }, get bots() { return bots.length; }, get cen() { return centroid(); }, crack: () => S.breach && crackPos(), steer: (x, y) => { target = { x, y, set: true }; } };
 initWorld(); boot();
 requestAnimationFrame(frame);
 })();

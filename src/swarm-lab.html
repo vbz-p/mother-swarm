@@ -1,0 +1,412 @@
+<title>Swarm Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap">
+<style>
+/* Layout: three microscope dishes side by side on desktop; on phones one dish at a time behind a test switcher. */
+:root {
+  color-scheme: dark;
+  --void: #040706; --glass: #0a1011; --rim: #1a2526; --dim: #5a6869; --pale: #b7c4c1;
+  --cyan: #4fd6cc; --cyan-hi: #a6fff6; --matter: #d6cca8; --mind: #a48ad8;
+  --f-pixel: "Silkscreen", "Courier New", monospace;
+  --f-term: "VT323", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--void); color: var(--pale); font-family: var(--f-term); font-size: 18px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+header { display: grid; gap: 6px; }
+h1 { margin: 0; font-family: var(--f-pixel); font-weight: 400; font-size: 16px; letter-spacing: .12em; color: var(--cyan); }
+header p { margin: 0; max-width: 70ch; font-size: 20px; line-height: 1.15; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button, .btn { min-height: 44px; padding: 4px 14px; background: var(--void); border: 1px solid var(--rim); color: var(--pale);
+  font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; cursor: pointer; }
+.seg button[aria-pressed="true"], .btn[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); }
+button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.label { font-family: var(--f-pixel); font-size: 9px; letter-spacing: .1em; color: var(--dim); }
+.tests { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.test { border: 1px solid var(--rim); background: var(--glass); display: grid; gap: 10px; padding: 12px; min-width: 0; align-content: start; }
+.test h2 { margin: 0; font-family: var(--f-pixel); font-weight: 400; font-size: 12px; letter-spacing: .08em; color: var(--pale); }
+.test h2 span { color: var(--dim); }
+.test .what { margin: 0; font-size: 18px; line-height: 1.1; color: var(--dim); min-height: 2.2em; }
+.dish { position: relative; }
+.dish canvas { width: 100%; aspect-ratio: 1; max-width: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; cursor: crosshair; background: var(--void); }
+.dish::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.25) 2px 3px); }
+.mode { position: absolute; top: 6px; left: 8px; font-family: var(--f-pixel); font-size: 8px; letter-spacing: .1em; color: var(--dim); pointer-events: none; z-index: 1; }
+.mode.manual { color: var(--cyan); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-variant-numeric: tabular-nums; }
+.stat { display: grid; gap: 0; }
+.stat b { font-weight: 400; font-size: 24px; color: var(--matter); line-height: 1; }
+.stat.sw b { color: var(--cyan); }
+.bar { height: 4px; background: var(--rim); position: relative; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); width: 0; transition: width .3s; }
+details { border-top: 1px solid var(--rim); padding-top: 8px; }
+summary { cursor: pointer; font-family: var(--f-pixel); font-size: 9px; letter-spacing: .1em; color: var(--dim); min-height: 28px; }
+table { width: 100%; border-collapse: collapse; font-size: 17px; font-variant-numeric: tabular-nums; }
+td, th { padding: 2px 4px; text-align: right; border-bottom: 1px solid var(--rim); }
+th { font-weight: 400; color: var(--dim); }
+td:first-child, th:first-child { text-align: left; color: var(--dim); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 18px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 8px; height: 8px; display: inline-block; }
+.picker { display: none; }
+.tune { border: 1px solid var(--rim); background: var(--glass); padding: 14px; display: grid; gap: 14px; }
+.tune-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.tune-head h2 { margin: 0; font-family: var(--f-pixel); font-weight: 400; font-size: 13px; letter-spacing: .1em; color: var(--cyan); }
+.tune-head p { margin: 0; flex-basis: 100%; color: var(--dim); font-size: 18px; max-width: 70ch; }
+.groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.group { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.group h3 { margin: 0 0 2px; font-family: var(--f-pixel); font-weight: 400; font-size: 10px; letter-spacing: .1em; color: var(--pale); }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: center; }
+.slider label { font-size: 17px; color: var(--pale); }
+.slider label small { color: var(--dim); font-size: 15px; }
+.slider output { font-size: 17px; color: var(--matter); font-variant-numeric: tabular-nums; }
+.slider output.changed { color: var(--cyan); }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--cyan); margin: 0; height: 28px; }
+.export { display: grid; gap: 8px; }
+.export textarea { width: 100%; min-height: 120px; resize: vertical; background: var(--void); color: var(--pale); border: 1px solid var(--rim); font-family: var(--f-term); font-size: 15px; line-height: 1.1; padding: 8px; }
+.export .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.copied { color: var(--cyan); font-size: 18px; }
+@media (max-width: 1000px) { .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .groups { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 860px) {
+  .tests { grid-template-columns: minmax(0, 1fr); }
+  .picker { display: flex; }
+  .tests[data-show="1"] .test:not([data-t="1"]), .tests[data-show="2"] .test:not([data-t="2"]), .tests[data-show="3"] .test:not([data-t="3"]) { display: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>SWARM LAB · SAMPLE 7</h1>
+    <p>The same 30 drones in three states of organization, eating the same kinds of matter. Drag on any dish to steer it yourself; the autopilot takes over again after 4 seconds without input.</p>
+  </header>
+
+  <div class="controls">
+    <div class="seg picker" id="picker" role="group" aria-label="Choose test">
+      <button data-v="1" aria-pressed="true">TEST 1</button><button data-v="2" aria-pressed="false">TEST 2</button><button data-v="3" aria-pressed="false">TEST 3</button>
+    </div>
+    <div class="seg" role="group" aria-label="Eating speed">
+      <span class="label" style="align-self:center">EAT SPEED PRESETS</span>
+      <button data-eat="1" id="eat1" aria-pressed="false">GAME NOW</button><button data-eat="3" id="eat3" aria-pressed="false">FAST ×3</button><button data-eat="6" id="eat6" aria-pressed="false">FRENZY ×6</button>
+    </div>
+    <button class="btn" id="resetBtn">RESET ALL</button>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:#5a6869"></i>loose drone</span>
+    <span><i style="background:#3aa39b"></i>obeying drone</span>
+    <span><i style="background:#d6fffb"></i>foreman</span>
+    <span><i style="background:#fff"></i>coordinator</span>
+    <span><i style="background:#d6cca8"></i>speck / crystal</span>
+    <span><i style="background:#e2d884"></i>spore bloom</span>
+    <span><i style="background:#bea0b6"></i>dead cell</span>
+  </div>
+
+  <div class="tests" id="tests" data-show="1"></div>
+
+  <section class="tune" aria-labelledby="tuneH">
+    <div class="tune-head">
+      <h2 id="tuneH">TUNING</h2>
+      <div class="seg"><button class="btn" id="copyBtn">COPY SETTINGS</button><button class="btn" id="defaultsBtn">BACK TO DEFAULTS</button></div>
+      <p>Every slider changes all three dishes live. Values that differ from the defaults turn cyan. When it feels right, copy the settings and paste them to Claude.</p>
+    </div>
+    <div class="groups" id="groups"></div>
+    <div class="export">
+      <span class="label">SETTINGS TO PASTE</span>
+      <textarea id="exportBox" readonly aria-label="Current settings as text"></textarea>
+      <div class="row"><span class="copied" id="copied" aria-live="polite"></span></div>
+    </div>
+  </section>
+</div>
+
+<template id="testTpl">
+  <section class="test">
+    <h2></h2>
+    <p class="what"></p>
+    <div class="dish"><div class="mode">AUTOPILOT</div><canvas width="160" height="160"></canvas></div>
+    <div class="stats">
+      <div class="stat sw"><span class="label">SPREAD</span><b class="s-spread">0</b></div>
+      <div class="stat"><span class="label">YIELD</span><b class="s-yield">0%</b></div>
+      <div class="stat"><span class="label">MATTER/S</span><b class="s-rate">0</b></div>
+      <div class="stat"><span class="label">EATEN</span><b class="s-eaten">0</b></div>
+    </div>
+    <div><span class="label">DISCIPLINE</span><div class="bar"><i class="s-disc"></i></div></div>
+    <details><summary>BEHAVIOUR VALUES</summary><table class="params"></table></details>
+  </section>
+</template>
+
+<script>
+(() => {
+'use strict';
+const W = 160, H = 160, CX = 80, CY = 80, DISH = 76;
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// Discipline levels: how a bot moves and how well it eats.
+const LEVEL = {
+  loose:  { name: 'Loose drone',   sep: 3.3, coh: 0.0125, pull: 0.003, jit: 0.21, wander: 0.14, maxV: 1.5,  orbit: 0,   orbitK: 0,     eat: 0.9, disc: 0.15 },
+  fore:   { name: 'Obeys foreman', sep: 2.7, coh: 0.003,  pull: 0.006, jit: 0.18, wander: 0.03, maxV: 1.2,  orbit: 2.6, orbitK: 0.045, eat: 1.5, disc: 0.6 },
+  coord:  { name: 'Coordinated',   sep: 2.8, coh: 0.015,  pull: 0.02,  jit: 0.04, wander: 0,    maxV: 1.35, orbit: 1.5, orbitK: 0.13,  eat: 2.1, disc: 0.9 },
+};
+const TESTS = [
+  { id: 1, title: 'LOOSE SWARM', sub: '30 drones', what: 'No hierarchy. Every drone wanders on its own, drifts wide and lags behind your finger.', drones: 30, fore: 0, coord: 0 },
+  { id: 2, title: 'FOREMEN', sub: '30 drones · 2 foremen', what: 'Each foreman pulls 10 drones into a tight knot that follows and eats faster. 10 drones are still loose.', drones: 30, fore: 2, coord: 0 },
+  { id: 3, title: 'COORDINATOR', sub: '30 drones · 3 foremen · 1 coordinator', what: 'Every unit answers to the coordinator: the swarm moves as one body, with only a faint tremor left.', drones: 30, fore: 3, coord: 1 },
+];
+const DEP = {
+  speck:   { r: 3,  hp: 30,  grains: [6, 10],  value: 1.0,  rgb: '214,204,168', cap: 10, every: [0.6, 1.2] },
+  crystal: { r: 8,  hp: 500, grains: [34, 44], value: 0.75, rgb: '232,228,208', cap: 2,  every: [6, 10], flat: 0.7 },
+  bloom:   { r: 5,  hp: 90,  grains: [14, 18], value: 1.5,  rgb: '226,216,132', cap: 1,  every: [6, 10], drift: 0.22 },
+  cell:    { r: 10, hp: 900, grains: [40, 50], value: 2.0,  rgb: '190,160,182', cap: 1,  every: [18, 26] },
+};
+const HP_SCALE = Math.max(1, 33 / 12);   // the game scales deposits by swarm size: 33 bots here
+const MAT = { eat: 4.75, contact: 3, speckCap: 20, speckEvery: 3.4, crystalCap: 5, bloomCap: 4, cellCap: 3, foremanRing: 4.5 };   // Viktor's settings v1
+LEVEL.coord.ringF = 4.5;
+const DEFAULTS = JSON.parse(JSON.stringify({ LEVEL, MAT }));
+
+function inDish(r) { const a = rnd(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r; return { x: CX + Math.cos(a) * d, y: CY + Math.sin(a) * d }; }
+
+class Lab {
+  constructor(cfg, el) {
+    this.cfg = cfg; this.el = el;
+    this.cv = el.querySelector('canvas'); this.ctx = this.cv.getContext('2d');
+    this.modeEl = el.querySelector('.mode');
+    el.dataset.t = cfg.id;
+    el.querySelector('h2').innerHTML = `TEST ${cfg.id} · ${cfg.title} <span>· ${cfg.sub}</span>`;
+    el.querySelector('.what').textContent = cfg.what;
+    this.bindInput();
+    this.reset();
+  }
+  reset() {
+    const c = this.cfg; this.bots = []; this.deps = []; this.crumbs = [];
+    this.target = { x: CX, y: CY }; this.manualT = -99; this.t = 0;
+    this.eaten = 0; this.rateAcc = 0; this.rate = 0; this.yieldSm = 0;
+    this.spawnT = { speck: 0, crystal: 2, bloom: 3, cell: 5 };
+    const add = (tier) => { const p = inDish(10); this.bots.push({ x: p.x, y: p.y, vx: 0, vy: 0, tier, leader: -1, lvl: 'loose', n: 0, flash: 0, wa: rnd(0, Math.PI * 2) }); };
+    for (let i = 0; i < c.coord; i++) add(2);
+    for (let i = 0; i < c.fore; i++) add(1);
+    for (let i = 0; i < c.drones; i++) add(0);
+    const coords = [], fores = [];
+    this.bots.forEach((b, i) => { if (b.tier === 2) coords.push(i); if (b.tier === 1) fores.push(i); });
+    let d = 0, f = 0;
+    for (const b of this.bots) {
+      if (b.tier === 1) { b.lvl = c.coord ? 'coord' : 'fore'; b.leader = coords.length ? coords[Math.floor(f / 5)] ?? -1 : -1; f++; }
+      if (b.tier === 2) b.lvl = 'coord';
+      if (b.tier === 0) { const L = fores[Math.floor(d / 10)]; if (L !== undefined) { b.leader = L; b.lvl = c.coord ? 'coord' : 'fore'; } d++; }
+    }
+    for (let i = 0; i < 8; i++) this.deps.push(this.spawn('speck'));
+    this.deps.push(this.spawn('crystal'));
+    this.renderParams();
+  }
+  spawn(kind) {
+    const T = DEP[kind]; let pos = null;
+    for (let i = 0; i < 12 && !pos; i++) { const c = inDish(64); if (this.deps.every(d => Math.hypot(d.x - c.x, d.y - c.y) > d.r + T.r + 5)) pos = c; }
+    pos = pos || inDish(64);
+    const n = Math.round(rnd(T.grains[0], T.grains[1])), grains = [];
+    for (let i = 0; i < n; i++) { const a = rnd(0, Math.PI * 2), d = T.r * Math.sqrt(kind === 'cell' ? rnd(0, .75) : Math.random()); grains.push({ x: Math.cos(a) * d, y: Math.sin(a) * d * (T.flat || 1) }); }
+    const a = rnd(0, Math.PI * 2);
+    return { kind, x: pos.x, y: pos.y, r: T.r, grains, bite: 0, per: T.hp * HP_SCALE / n, age: 0, vx: T.drift ? Math.cos(a) * T.drift : 0, vy: T.drift ? Math.sin(a) * T.drift : 0, seed: Math.random() * 6 };
+  }
+  bindInput() {
+    const toL = e => { const r = this.cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; };
+    let down = false;
+    this.cv.addEventListener('pointerdown', e => { down = true; this.cv.setPointerCapture(e.pointerId); this.target = toL(e); this.manualT = this.t; });
+    this.cv.addEventListener('pointermove', e => { if (down) { this.target = toL(e); this.manualT = this.t; } });
+    const up = () => { down = false; }; this.cv.addEventListener('pointerup', up); this.cv.addEventListener('pointercancel', up);
+  }
+  centroid() { let x = 0, y = 0; for (const b of this.bots) { x += b.x; y += b.y; } return { x: x / this.bots.length, y: y / this.bots.length }; }
+  autopilot() {
+    if (this.t - this.manualT < 4) return;
+    const c = this.centroid();
+    if (this.goal && this.deps.includes(this.goal) && this.goal.grains.length) { this.target = { x: this.goal.x, y: this.goal.y }; return; }
+    let best = null, bs = -1e9;
+    for (const d of this.deps) { const s = DEP[d.kind].value * 30 - Math.hypot(d.x - c.x, d.y - c.y); if (s > bs) { bs = s; best = d; } }
+    this.goal = best; if (best) this.target = { x: best.x, y: best.y };
+  }
+  step(dt) {
+    this.t += dt; this.autopilot();
+    const bots = this.bots, n = bots.length, cen = this.centroid(), tx = this.target.x, ty = this.target.y;
+    let touchVal = 0;
+    for (let i = 0; i < n; i++) {
+      const b = bots[i], L = LEVEL[b.lvl];
+      let fx = 0, fy = 0, cnt = 0, ax = 0, ay = 0;
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue; const o = bots[j], dx = b.x - o.x, dy = b.y - o.y, d2 = dx * dx + dy * dy;
+        if (d2 < 36) { cnt++; ax += o.vx; ay += o.vy; const sep = b.tier ? Math.max(L.sep, 3) : L.sep;
+          if (d2 < sep * sep && d2 > 1e-4) { const d = Math.sqrt(d2); fx += dx / d * (sep - d) * 0.12; fy += dy / d * (sep - d) * 0.12; } }
+      }
+      b.n = cnt;
+      if (cnt) { fx += (ax / cnt - b.vx) * 0.05; fy += (ay / cnt - b.vy) * 0.05; }
+      fx += (cen.x - b.x) * L.coh; fy += (cen.y - b.y) * L.coh;
+      const hasLeader = b.leader >= 0 && bots[b.leader];
+      if (hasLeader) {
+        const Ld = bots[b.leader], dx = Ld.x - b.x, dy = Ld.y - b.y, d = Math.hypot(dx, dy) || 1;
+        const want = b.tier === 1 ? MAT.foremanRing : L.orbit;
+        fx += dx / d * (d - want) * L.orbitK - dy / d * 0.03; fy += dy / d * (d - want) * L.orbitK + dx / d * 0.03;
+        fx += (tx - b.x) * L.pull * 0.5; fy += (ty - b.y) * L.pull * 0.5;
+      } else {
+        const pull = b.tier ? 0.022 : L.pull;
+        fx += (tx - b.x) * pull; fy += (ty - b.y) * pull;
+      }
+      b.wa += rnd(-0.25, 0.25); fx += Math.cos(b.wa) * L.wander + rnd(-L.jit, L.jit); fy += Math.sin(b.wa) * L.wander + rnd(-L.jit, L.jit);
+      b.vx = b.vx * 0.9 + fx; b.vy = b.vy * 0.9 + fy;
+      const sp = Math.hypot(b.vx, b.vy); if (sp > L.maxV) { b.vx *= L.maxV / sp; b.vy *= L.maxV / sp; }
+      b.x += b.vx; b.y += b.vy;
+      const rx = b.x - CX, ry = b.y - CY, rr = Math.hypot(rx, ry);
+      if (rr > DISH - 2) { b.x = CX + rx / rr * (DISH - 2); b.y = CY + ry / rr * (DISH - 2); b.vx *= -0.3; b.vy *= -0.3; }
+      b.harv = 0;
+      for (const p of this.deps) {
+        if (!p.grains.length) continue;
+        const dx = b.x - p.x, dy = b.y - p.y, f = p.r + MAT.contact;
+        if (dx * dx + dy * dy < f * f) {
+          b.harv = 1; const v = DEP[p.kind].value; touchVal += v;
+          p.bite += L.eat * MAT.eat * dt / p.per;
+          this.rateAcc += v * L.eat * 0.5 * dt;
+          while (p.bite >= 1 && p.grains.length) {
+            p.bite -= 1; const g = p.grains.splice(Math.floor(Math.random() * p.grains.length), 1)[0];
+            this.crumbs.push({ x: p.x + g.x, y: p.y + g.y, tx: b, life: 0.4, rgb: DEP[p.kind].rgb });
+          }
+          break;
+        }
+      }
+    }
+    this.yieldSm += (touchVal / n - this.yieldSm) * Math.min(1, dt * 2);
+    for (let k = this.deps.length - 1; k >= 0; k--) {
+      const p = this.deps[k]; p.age += dt;
+      if (p.vx) { p.x += p.vx; p.y += p.vy; const rx = p.x - CX, ry = p.y - CY, rr = Math.hypot(rx, ry);
+        if (rr > 64) { p.vx = -p.vx; p.vy = -p.vy; } if (Math.random() < dt * 0.4) { const a = rnd(0, Math.PI * 2); p.vx = Math.cos(a) * 0.22; p.vy = Math.sin(a) * 0.22; } }
+      if (!p.grains.length) { this.deps.splice(k, 1); this.eaten++; }
+    }
+    for (const kind in DEP) {
+      this.spawnT[kind] -= dt;
+      if (this.spawnT[kind] <= 0) { const T = DEP[kind];
+        this.spawnT[kind] = kind === 'speck' ? rnd(MAT.speckEvery * 0.7, MAT.speckEvery * 1.3) : rnd(T.every[0], T.every[1]);
+        const cap = { speck: MAT.speckCap, crystal: MAT.crystalCap, bloom: MAT.bloomCap, cell: MAT.cellCap }[kind];
+        if (this.deps.filter(d => d.kind === kind).length < cap) this.deps.push(this.spawn(kind)); }
+    }
+    for (let i = this.crumbs.length - 1; i >= 0; i--) { const c = this.crumbs[i]; c.life -= dt; c.x += (c.tx.x - c.x) * 0.25; c.y += (c.tx.y - c.y) * 0.25; if (c.life <= 0) this.crumbs.splice(i, 1); }
+  }
+  draw() {
+    const g = this.ctx;
+    g.fillStyle = '#040706'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(183,196,193,0.10)'; g.beginPath(); g.arc(CX, CY, DISH, 0, Math.PI * 2); g.stroke();
+    const now = performance.now() / 1000;
+    for (const p of this.deps) {
+      const T = DEP[p.kind], grow = Math.min(1, p.age / 0.3);
+      let a = 0.9; if (p.kind === 'bloom') a *= 0.75 + 0.25 * Math.sin(now * 5 + p.seed);
+      if (p.kind === 'cell') { g.strokeStyle = `rgba(${T.rgb},${0.35 * grow})`; g.beginPath(); g.arc(p.x, p.y, p.r * grow, 0, Math.PI * 2); g.stroke(); }
+      g.fillStyle = `rgba(${T.rgb},${a})`;
+      const shown = Math.ceil(p.grains.length * grow);
+      for (let i = 0; i < shown; i++) { const q = p.grains[i]; g.fillRect(Math.round(p.x + q.x * grow), Math.round(p.y + q.y * grow), 1, 1); }
+    }
+    for (const c of this.crumbs) { g.fillStyle = `rgba(${c.rgb},${Math.min(1, c.life * 3)})`; g.fillRect(Math.round(c.x), Math.round(c.y), 1, 1); }
+    if (this.t - this.manualT < 4) { g.fillStyle = 'rgba(79,214,204,0.4)'; g.fillRect(Math.round(this.target.x) - 2, Math.round(this.target.y), 5, 1); g.fillRect(Math.round(this.target.x), Math.round(this.target.y) - 2, 1, 5); }
+    for (const b of this.bots) {
+      const x = Math.round(b.x), y = Math.round(b.y);
+      if (b.tier === 2) { g.fillStyle = 'rgba(166,255,246,0.10)'; g.beginPath(); g.arc(b.x, b.y, 6, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.fillRect(x - 1, y - 1, 3, 3); continue; }
+      if (b.tier === 1) { g.fillStyle = '#d6fffb'; g.fillRect(x, y, 2, 2); continue; }
+      g.fillStyle = b.lvl === 'loose' ? (b.harv ? '#8c9a9b' : '#5a6869') : (b.harv || b.n >= 6 ? '#a6fff6' : '#3aa39b');
+      g.fillRect(x, y, 1, 1);
+    }
+    this.modeEl.textContent = this.t - this.manualT < 4 ? 'MANUAL' : 'AUTOPILOT';
+    this.modeEl.classList.toggle('manual', this.t - this.manualT < 4);
+  }
+  stats() {
+    const c = this.centroid(); let s = 0; for (const b of this.bots) s += Math.hypot(b.x - c.x, b.y - c.y);
+    this.rate += (this.rateAcc - this.rate) * 0.5; const r = this.rate; this.rateAcc = 0;
+    const disc = this.bots.reduce((a, b) => a + LEVEL[b.lvl].disc, 0) / this.bots.length;
+    const q = sel => this.el.querySelector(sel);
+    q('.s-spread').textContent = (s / this.bots.length).toFixed(1) + 'px';
+    q('.s-yield').textContent = Math.round(this.yieldSm * 100) + '%';
+    q('.s-rate').textContent = r.toFixed(1);
+    q('.s-eaten').textContent = this.eaten;
+    q('.s-disc').style.width = Math.round(disc * 100) + '%';
+  }
+  renderParams() {
+    const used = [...new Set(this.bots.filter(b => b.tier === 0).map(b => b.lvl))];
+    const rows = [['Drones', ...used.map(l => this.bots.filter(b => b.tier === 0 && b.lvl === l).length)], ['Spacing (px)', ...used.map(l => LEVEL[l].sep)],
+      ['Jitter (px/frame)', ...used.map(l => '±' + LEVEL[l].jit)], ['Wander', ...used.map(l => LEVEL[l].wander)], ['Top speed', ...used.map(l => LEVEL[l].maxV)], ['Eat speed', ...used.map(l => '×' + LEVEL[l].eat)]];
+    this.el.querySelector('.params').innerHTML = `<tr><th></th>${used.map(l => `<th>${LEVEL[l].name}</th>`).join('')}</tr>` + rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+  }
+}
+
+const tpl = document.getElementById('testTpl'), box = document.getElementById('tests');
+const labs = TESTS.map(cfg => { const el = tpl.content.firstElementChild.cloneNode(true); box.append(el); return new Lab(cfg, el); });
+
+document.getElementById('picker').onclick = e => { const v = e.target.dataset.v; if (!v) return; box.dataset.show = v;
+  for (const b of e.currentTarget.querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.v === v); };
+function syncEatButtons() { for (const k of ['eat1', 'eat3', 'eat6']) { const b = document.getElementById(k); b.setAttribute('aria-pressed', +b.dataset.eat === MAT.eat); } }
+for (const id of ['eat1', 'eat3', 'eat6']) document.getElementById(id).onclick = e => { MAT.eat = +e.currentTarget.dataset.eat; refreshSliders(); onTune(); };
+
+// ---------- Tuning panel ----------
+const LEVEL_SLIDERS = [
+  ['sep', 'Spacing', 'px between drones', 1, 10, 0.1], ['jit', 'Jitter', 'random shake', 0, 1, 0.01], ['wander', 'Wander', 'drift off on its own', 0, 0.3, 0.005],
+  ['pull', 'Follow', 'pull toward your finger', 0, 0.03, 0.001], ['coh', 'Cohesion', 'pull toward the swarm', 0, 0.02, 0.0005],
+  ['maxV', 'Top speed', 'px per frame', 0.3, 2.5, 0.05], ['orbit', 'Ring size', 'px from its foreman', 1, 8, 0.1], ['orbitK', 'Obedience', 'how hard the ring holds', 0, 0.15, 0.005],
+  ['eat', 'Eat speed', '× per drone', 0.5, 3, 0.1],
+];
+const MAT_SLIDERS = [
+  ['eat', 'Eat speed', '× the game today', 0.5, 8, 0.25], ['contact', 'Reach', 'px a drone eats from', 1, 6, 0.5],
+  ['speckEvery', 'Speck spawn', 'seconds between', 0.2, 4, 0.1], ['speckCap', 'Speck cap', 'on the dish', 2, 20, 1],
+  ['crystalCap', 'Crystal cap', '', 0, 5, 1], ['bloomCap', 'Bloom cap', '', 0, 4, 1], ['cellCap', 'Dead cell cap', '', 0, 3, 1],
+  ['foremanRing', 'Foreman ring', 'px from coordinator', 2, 12, 0.5],
+];
+const groups = document.getElementById('groups'), sliders = [];
+const fmtV = (v, step) => step >= 1 ? String(v) : (+v).toFixed(Math.max(0, Math.ceil(-Math.log10(step))));
+function addSlider(parent, obj, def, key, label, hint, min, max, step, id) {
+  const row = document.createElement('div'); row.className = 'slider';
+  row.innerHTML = `<label for="${id}">${label} <small>${hint}</small></label><output for="${id}"></output><input type="range" id="${id}" min="${min}" max="${max}" step="${step}">`;
+  const input = row.querySelector('input'), out = row.querySelector('output');
+  const show = () => { out.textContent = fmtV(obj[key], step); out.classList.toggle('changed', Math.abs(obj[key] - def[key]) > step / 2); };
+  input.oninput = () => { obj[key] = +input.value; show(); onTune(); };
+  sliders.push(() => { input.value = obj[key]; show(); });
+  parent.append(row);
+}
+for (const lvl of ['loose', 'fore', 'coord']) {
+  const g = document.createElement('div'); g.className = 'group';
+  g.innerHTML = `<h3>${LEVEL[lvl].name.toUpperCase()}</h3>`;
+  for (const [k, l, h, mn, mx, st] of LEVEL_SLIDERS) { if (lvl === 'loose' && (k === 'orbit' || k === 'orbitK')) continue; addSlider(g, LEVEL[lvl], DEFAULTS.LEVEL[lvl], k, l, h, mn, mx, st, `t-${lvl}-${k}`); }
+  groups.append(g);
+}
+{ const g = document.createElement('div'); g.className = 'group'; g.innerHTML = '<h3>MATTER</h3>';
+  for (const [k, l, h, mn, mx, st] of MAT_SLIDERS) addSlider(g, MAT, DEFAULTS.MAT, k, l, h, mn, mx, st, `t-mat-${k}`);
+  groups.append(g); }
+function refreshSliders() { sliders.forEach(f => f()); syncEatButtons(); }
+const KEYS = ['sep', 'jit', 'wander', 'pull', 'coh', 'maxV', 'orbit', 'orbitK', 'eat'];
+function settingsText() {
+  const lv = {}; for (const l of ['loose', 'fore', 'coord']) { lv[l] = {}; for (const k of KEYS) if (!(l === 'loose' && k.startsWith('orbit'))) lv[l][k] = LEVEL[l][k]; }
+  return 'Mother Swarm swarm-lab settings v1\n' + JSON.stringify({ levels: lv, matter: MAT }, null, 1);
+}
+function onTune() {
+  syncEatButtons(); labs.forEach(l => l.renderParams());
+  document.getElementById('exportBox').value = settingsText();
+  try { localStorage.setItem('swarm-lab-settings', JSON.stringify({ LEVEL, MAT })); } catch (e) {}
+}
+try { const saved = JSON.parse(localStorage.getItem('swarm-lab-settings') || 'null');
+  if (saved) { for (const l in saved.LEVEL) if (LEVEL[l]) Object.assign(LEVEL[l], saved.LEVEL[l]); Object.assign(MAT, saved.MAT); } } catch (e) {}
+document.getElementById('defaultsBtn').onclick = () => {
+  for (const l in DEFAULTS.LEVEL) Object.assign(LEVEL[l], DEFAULTS.LEVEL[l]); Object.assign(MAT, DEFAULTS.MAT);
+  refreshSliders(); onTune(); labs.forEach(l => l.reset());
+};
+document.getElementById('copyBtn').onclick = () => {
+  const box = document.getElementById('exportBox'), msg = document.getElementById('copied'), text = settingsText();
+  const fallback = () => { box.focus(); box.select(); msg.textContent = 'Selected. Copy it with your device\'s copy command.'; };
+  try { navigator.clipboard.writeText(text).then(() => { msg.textContent = 'Copied. Paste it into the chat with Claude.'; }, fallback); } catch (e) { fallback(); }
+  setTimeout(() => { msg.textContent = ''; }, 5000);
+};
+refreshSliders(); onTune();
+document.getElementById('resetBtn').onclick = () => labs.forEach(l => l.reset());
+
+let last = performance.now(), statT = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  for (const l of labs) { if (!l.el.offsetParent) { l.t += dt; continue; } l.step(dt); l.draw(); }
+  statT += dt; if (statT > 0.5) { for (const l of labs) { l.rateAcc /= statT; l.stats(); } statT = 0; }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>

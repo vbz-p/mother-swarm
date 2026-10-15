@@ -21,11 +21,15 @@ Settings has a ×5 playtest clock and a restart button. Progress saves in the br
 | --- | --- |
 | `index.html` | The game as served by GitHub Pages (built, do not edit) |
 | `src/mother-swarm.html` | Game source, in Claude artifact format |
-| `tools/build_pages.py` | Wraps the source into a standalone `index.html` |
+| `lab/index.html` | Swarm Lab: three test dishes with tuning sliders (built, do not edit) |
+| `src/swarm-lab.html` | Swarm Lab source |
+| `tools/build_pages.py` | Wraps the sources into standalone `index.html` and `lab/index.html` |
 | `docs/design-doc.md` | Game design document, v2 |
 | `docs/balance-review.md` | Zone 1 economy review and the changes it led to |
 | `tools/sim2.py` | Pacing simulator for the zone 1 economy |
 
-After editing `src/mother-swarm.html`, rebuild with `python3 tools/build_pages.py` and commit both files.
+After editing anything in `src/`, rebuild with `python3 tools/build_pages.py` and commit the source and the built files.
+
+The Swarm Lab lives at `/lab/` on the Pages site. Tune the swarm there, press **Copy settings**, and paste the result to Claude to carry it into the game.
 
 Run the simulator with `python3 tools/sim2.py '<json overrides>'`, for example `python3 tools/sim2.py '{"obs_k": 0.18}'`.
