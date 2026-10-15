@@ -26,10 +26,13 @@ Settings has a ×5 playtest clock and a restart button. Progress saves in the br
 | `tools/build_pages.py` | Wraps the sources into standalone `index.html` and `lab/index.html` |
 | `docs/design-doc.md` | Game design document, v2 |
 | `docs/balance-review.md` | Zone 1 economy review and the changes it led to |
-| `tools/sim2.py` | Pacing simulator for the zone 1 economy |
+| `tools/playtest.js` | Automated playtest: plays the real game headless and prints a milestone timeline |
+| `tools/sim2.py` | Early pacing simulator (superseded by the playtest bot) |
 
 After editing anything in `src/`, rebuild with `python3 tools/build_pages.py` and commit the source and the built files.
 
 The Swarm Lab lives at `/lab/` on the Pages site. Tune the swarm there, press **Copy settings**, and paste the result to Claude to carry it into the game.
+
+Run a playtest with `NODE_PATH=$(npm root -g) node tools/playtest.js index.html good` (policies: `good`, `average`, `casual`, `reckless`; needs Playwright).
 
 Run the simulator with `python3 tools/sim2.py '<json overrides>'`, for example `python3 tools/sim2.py '{"obs_k": 0.18}'`.

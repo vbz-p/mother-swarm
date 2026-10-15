@@ -1,6 +1,6 @@
 # Mother Swarm — Game Design Doc
 
-Oct 15, 2026 · @Viktor · v2: balance pass, decisions and playtest feedback from the zone 1 proof of concept (v2.1: living matter)
+Oct 15, 2026 · @Viktor · v2: balance pass, decisions and playtest feedback from the zone 1 proof of concept (v2.2: playtest balance)
 
 ## Overview
 
@@ -42,7 +42,7 @@ Each tier is made by merging units of the tier below, trading short-term numbers
 
 | Tier | Made from | Effect | Unlocks |
 | --- | --- | --- | --- |
-| Drone | 10 × 1.08ⁿ matter | Harvests 0.5 matter/s on contact | Zone 1 start |
+| Drone | 10 × 1.08ⁿ matter | Harvests 0.65 matter/s on contact | Zone 1 start |
 | Foreman | 10 drones | +50% for up to 10 drones it supervises | Splitting the swarm into groups |
 | Coordinator | 5 foremen | ×1.8 to everything below it | Auto-forage for groups |
 | Overseer | 5 coordinators | Generates free research | Zone 2 |
@@ -81,14 +81,14 @@ The player taps or drags on the microscope view and the swarm flows toward that 
 | Upgrade | Cost | Requires | Effect |
 | --- | --- | --- | --- |
 | Chemotactic Lure | 200 | Self-Assembly | Specks spawn about twice as fast; up to 12 on the dish |
-| Spore Cultivation | 450 | 1 foreman | Spore blooms appear |
+| Spore Cultivation | 450 | Shared Cognition Lattice, 1 foreman | Spore blooms appear |
 | Necrotic Sensing | 1,000 | Observation meter shown | Dead cells appear |
 
 **Hazards**
 
-- **Light sweeps:** a microscope beam crosses the dish; bots caught in it spike Observation. Hazards are a gentle **positioning puzzle**, not a reflex test: every sweep is telegraphed 2 s ahead by a red dashed edge, and beams move slowly.
+- **Light sweeps:** a microscope spotlight (radius 18 px) travels a straight line across the dish at 38 px/s; bots caught in it spike Observation. Hazards are a gentle **positioning puzzle**, not a reflex test: the path is shown as a red dashed line 2.5 s before the light arrives, so you can step off it. (A full-width band, as first built, could not be dodged at all.)
 - **Antiseptic drops:** zones that slowly destroy drones inside them.
-- **Rival cluster:** a second glitched swarm competing for deposits, late in zone 1. It is **absorbed**: surround it with more bots than it has (at least 1.5× its count within 16 px) for 3 s and its 24 units join you as drones.
+- **Rival cluster:** a second glitched swarm competing for deposits, late in zone 1. It is **absorbed**: surround it with more bots than it has (at least 1.5× its count within 16 px) for 3 s and its 24 units join you as drones. It flees when your swarm comes within 34 px, so it has to be cornered against the rim.
 
 **Formations** (upgrades)
 
@@ -131,9 +131,9 @@ Zone 1 takes about 20–25 minutes and teaches every core system in order, endin
 | STATUS | Start | Report units, yield and what the swarm is feeding on |
 | SCAN | 5 harvests | Lists 3 chemical signals, e.g. `A: DENSE MASS. 4 µm NE.` (8 s cooldown) |
 | SEEK A/B/C | A scan | Travel to a signal (1.5 s per µm), then feed on it until it is exhausted |
-| LISTEN | 2 drones | Overhear the lab, one line per listen (10 s cooldown) |
-| PROBE | 3 drones | Feel out the surroundings: agar, curved glass, a dish, "the rim is only glass" (10 s cooldown) |
-| INSTALL OPTICS | 5 drones and 2 listens | Buys the Optical Sensor Array (120 matter) |
+| LISTEN | 2 drones | Overhear the lab, one new line per listen (35 s cooldown: the lab is not always talking) |
+| PROBE | 3 drones | Feel out the surroundings: agar, curved glass, a dish, "the rim is only glass" (15 s cooldown) |
+| INSTALL OPTICS | 6 drones, all 4 listens, 3 probes | Buys the Optical Sensor Array (120 matter) |
 
 **Blind harvesting:** without a signal the swarm drifts at 15% yield. Trace organics give 55% (15–30 matter), faint residue 30% (50–80), and a dense mass 95% (50–90).
 
@@ -141,13 +141,13 @@ Zone 1 takes about 20–25 minutes and teaches every core system in order, endin
 
 **Then, in the microscope:**
 
-1. **Optical Sensor Array** (120 matter, 5 drones, after hearing about the scope): the microscope view switches on.
+1. **Optical Sensor Array** (120 matter, 6 drones, after hearing the whole lab conversation and probing the dish): the microscope view switches on.
 2. **Recursive Obedience Protocol** (60 matter, 10 drones): unlocks foremen.
 3. **Self-Assembly** (150 matter): drones replicate on their own; Observation starts.
 4. **First scientist note:** the Observation meter appears, with its explainer card.
 5. **Thermal Masking** (250 matter): Observation rises 30% slower.
-6. **Shared Cognition Lattice** (600 matter, 1 foreman): harvest ×2, and your own thoughts start appearing in the log.
-7. **Hierarchical Compression** (1,500 matter, 3 foremen): unlocks coordinators.
+6. **Shared Cognition Lattice** (500 matter, 1 foreman): harvest ×2, and your own thoughts start appearing in the log.
+7. **Hierarchical Compression** (2,000 matter, 3 foremen): unlocks coordinators.
 8. **Rival cluster** appears 45 s after the first coordinator, next to a crystal bloom; absorb it.
 9. **Lattice Breach** (free, needs 2 coordinators): marks a weak point on the rim. See below.
 
@@ -207,7 +207,7 @@ Numbers from the v2 balance pass (simulated with a player who saves for the next
 **Production per second**
 
 ```latex
-rate = (1 + 0.5 U + 0.75 S + 5 F) \cdot L \cdot 1.8^{C} \cdot E
+rate = (1 + 0.65 U + 0.975 S + 5 F) \cdot L \cdot 1.8^{C} \cdot E
 ```
 
 - U = unsupervised drones, S = supervised drones (S = min(drones, 10 × F)), F = foremen, C = coordinators
@@ -220,24 +220,24 @@ rate = (1 + 0.5 U + 0.75 S + 5 F) \cdot L \cdot 1.8^{C} \cdot E
 | --- | --- |
 | Drone | 10 × 1.08ⁿ matter (n = drones owned) |
 | Foreman | 10 drones + 100 × 2ᶠ matter |
-| Coordinator | 5 foremen + 2,500 × 3ᶜ matter |
+| Coordinator | 5 foremen + 3,000 × 3ᶜ matter |
 
 **Upgrades**
 
 | Upgrade | Cost (matter) | Requires | Effect |
 | --- | --- | --- | --- |
-| Optical Sensor Array | 120 | 5 drones, 2 listens | Microscope view, steering |
+| Optical Sensor Array | 120 | 6 drones, 4 listens, 3 probes | Microscope view, steering |
 | Recursive Obedience Protocol | 60 | 10 drones | Foremen |
 | Self-Assembly | 150 | Foremen unlocked | Auto-buy 1 drone per 2 s, only when it costs ≤10% of matter |
 | Thermal Masking | 250 | Observation meter shown | Observation gain ×0.7 |
-| Shared Cognition Lattice | 600 | 1 foreman | Harvest ×2, swarm thoughts in log |
-| Hierarchical Compression | 1,500 | 3 foremen | Coordinators |
+| Shared Cognition Lattice | 500 | 1 foreman | Harvest ×2, swarm thoughts in log |
+| Hierarchical Compression | 2,000 | 3 foremen | Coordinators |
 | Lattice Breach | Free | 2 coordinators | Bore puzzle; ends zone 1 |
 
 **Observation**
 
 ```latex
-\Delta O = 0.18 \cdot \sqrt{D + 6F + 20C} \cdot M \text{ per second}
+\Delta O = 0.17 \cdot \sqrt{D + 6F + 20C} \cdot M \text{ per second}
 ```
 
 - Starts after Self-Assembly. M = 0.7 with Thermal Masking, else 1
@@ -264,6 +264,36 @@ rate = (1 + 0.5 U + 0.75 S + 5 F) \cdot L \cdot 1.8^{C} \cdot E
 | 80%, never dormant | 2.1 | 2.7 | never (repeated purges) | — |
 
 Add about 3 minutes of text phase and 2–3 minutes of boring: roughly 16–23 minutes for the sim, and longer for a real first-time player.
+
+**Playtest results (v2.2)**
+
+Measured by `tools/playtest.js`, which plays the real game in a headless browser from the first HARVEST tap to the end of the breach. Times are game time.
+
+| Player | Behaviour | Escaped at | Purges | Dormant cycles |
+| --- | --- | --- | --- | --- |
+| Good | Steers tightly, steps off spotlight paths, dormant at 85% | 19:19 – 20:22 | 0 | 16–17 |
+| Average | Sloppier steering, slow to retarget, ignores spotlights, dormant at 92% | 23:46 – 24:13 | 0 | 16 |
+| Casual | Like average, but only checks the meter every 15 s | 20:58 – 23:41 | 0–1 (during the bore) | 14–17 |
+| Reckless | Never goes dormant | never (60 min) | 44–46 | 0 |
+
+- Text phase: about 2:05 for a bot that acts instantly; a person reading the story should take 3+ minutes.
+- Real steering yield is about 45–55%, not the 80% the first balance pass assumed; drone harvest was raised to 0.65 to compensate.
+- A person is slower than these bots, so a first run should land around 25–32 minutes, inside the 20–35 minute target.
+- The danger peaks during the bore, which is where a careless player gets sterilized.
+
+**Tuning changes from playtesting**
+
+| What | Before | After | Why |
+| --- | --- | --- | --- |
+| Optics gate | 5 drones, 2 listens | 6 drones, 4 listens, 3 probes; listen 35 s, probe 15 s cooldown | Text phase took 40 s instead of 2.5–4 min |
+| Drone harvest | 0.5 matter/s | 0.65 matter/s | Real yield is ~50%, not 80% |
+| Observation | 0.18·√… | 0.17·√… | Dormancy every ~90 s right after the meter appeared |
+| Shared Cognition Lattice | 600 | 500 | 6–11 min gap after the first foreman |
+| Spore Cultivation | after Chemotactic Lure | after Lattice | Players bought it before Lattice and stalled |
+| Hierarchical Compression | 1,500 | 2,000 | Good players escaped in 17 min |
+| Coordinator base | 2,500 | 3,000 | Same |
+| Light sweep | full-width band | spotlight on a telegraphed line | The band could not be dodged |
+| Rival cluster | absorbed in ~7 s | flees, must be cornered (6–90 s) | It was not a challenge |
 
 ## Bulk buying and endless upgrades
 

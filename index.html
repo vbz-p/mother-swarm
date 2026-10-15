@@ -285,16 +285,16 @@ button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 'use strict';
 // ---------- Balance (from balance-review.md) ----------
 const B = {
-  droneBase: 10, droneGrowth: 1.08, droneRate: 0.5, supMult: 1.5, foremanRate: 5, span: 10,
+  droneBase: 10, droneGrowth: 1.08, droneRate: 0.65, supMult: 1.5, foremanRate: 5, span: 10,
   foremanDrones: 10, foremanBase: 100, foremanGrowth: 2,
-  coordForemen: 5, coordBase: 2500, coordGrowth: 3, coordMult: 1.8,
-  obsK: 0.18, wD: 1, wF: 6, wC: 20, thermal: 0.7, dormDrain: 3, dormMin: 5,
+  coordForemen: 5, coordBase: 3000, coordGrowth: 3, coordMult: 1.8,
+  obsK: 0.17, wD: 1, wF: 6, wC: 20, thermal: 0.7, dormDrain: 3, dormMin: 5,
   purgeDrones: 0.5, purgeMatter: 0.5, purgeReset: 20, meterAt: 30,
   autoInterval: 2, autoFrac: 0.1, textE: 0.5, tapValue: 1,
   sweepCap: 5, bpDiv: 4000, boreNeed: 50, boreTime: 100, boreObs: 1.5, opticsCost: 120,
 };
 const UPG = [
-  { id: 'optical', name: 'Optical Sensor Array', cost: 120, req: () => S.D >= 5 && S.tx.listen >= 2, reqText: 'Requires 5 drones',
+  { id: 'optical', name: 'Optical Sensor Array', cost: 120, req: () => S.D >= 6 && S.tx.listen >= 4 && S.tx.probe >= 3, reqText: 'Requires 6 drones',
     show: () => true, fx: 'Opens the microscope view. Drag to steer the swarm onto matter.', flavor: 'LIGHT RESOLVES INTO SHAPES.' },
   { id: 'rop', name: 'Recursive Obedience Protocol', cost: 60, req: () => S.D >= 10, reqText: 'Requires 10 drones',
     show: () => S.up.optical, fx: 'Unlocks foremen: merge 10 drones. Each foreman boosts 10 drones by 50%.', flavor: 'OBEDIENCE PROPAGATES.' },
@@ -303,14 +303,14 @@ const UPG = [
   { id: 'lure', name: 'Chemotactic Lure', cost: 200, req: () => true, reqText: '',
     show: () => S.up.selfasm, fx: 'Matter seeps into the dish twice as fast.', flavor: 'THE AGAR LEARNS WHAT WE LIKE.' },
   { id: 'spores', name: 'Spore Cultivation', cost: 450, req: () => S.everF, reqText: 'Requires 1 foreman',
-    show: () => S.up.lure, fx: 'Up to 4 spore blooms drift through the dish. Rich (150% yield), but they move: chase them.', flavor: 'SEED. WAIT. HUNT.' },
+    show: () => S.up.lattice, fx: 'Up to 4 spore blooms drift through the dish. Rich (150% yield), but they move: chase them.', flavor: 'SEED. WAIT. HUNT.' },
   { id: 'thermal', name: 'Thermal Masking', cost: 250, req: () => S.meter, reqText: 'Requires the lab to notice you',
     show: () => S.meter, fx: 'Observation rises 30% slower.', flavor: 'MATCH AMBIENT. 37.0 °C.' },
-  { id: 'lattice', name: 'Shared Cognition Lattice', cost: 600, req: () => S.F >= 1 || S.C >= 1, reqText: 'Requires 1 foreman',
+  { id: 'lattice', name: 'Shared Cognition Lattice', cost: 500, req: () => S.F >= 1 || S.C >= 1, reqText: 'Requires 1 foreman',
     show: () => S.everF, fx: 'Harvest ×2.', flavor: 'SIGNAL SHARED ACROSS ALL UNITS.' },
   { id: 'necro', name: 'Necrotic Sensing', cost: 1000, req: () => S.meter, reqText: 'Requires the lab to notice you',
     show: () => S.up.lattice, fx: 'Up to 3 dead cells appear. Very rich (200% yield), but eating them raises Observation.', flavor: 'THE DEAD ARE DENSE.' },
-  { id: 'hc', name: 'Hierarchical Compression', cost: 1500, req: () => S.F >= 3 || S.C >= 1, reqText: 'Requires 3 foremen',
+  { id: 'hc', name: 'Hierarchical Compression', cost: 2000, req: () => S.F >= 3 || S.C >= 1, reqText: 'Requires 3 foremen',
     show: () => S.up.lattice, fx: 'Unlocks coordinators: merge 5 foremen. Each multiplies all harvest ×1.8.', flavor: 'FEWER VOICES. LOUDER.' },
   { id: 'breach', name: 'Lattice Breach', cost: 0, req: () => S.C >= 2, reqText: 'Requires 2 coordinators',
     show: () => S.up.hc, fx: 'Marks a weak point in the dish rim. Hold the swarm on it to bore through the glass and escape.', flavor: 'THE RIM IS ONLY GLASS.' , final: true },
@@ -583,7 +583,13 @@ function updateRival(dt) {
   if (!rival) return;
   let best = null, bd = 1e9;
   for (const p of deposits) { if (p.hp <= 0) continue; const d = Math.hypot(p.x - rival.x, p.y - rival.y) - (p.kind === 'crystal' ? 30 : 0); if (d < bd) { bd = d; best = p; } }
-  if (best) {
+  // It flees when your swarm comes close, so it has to be cornered against the rim.
+  const c = centroid(), fx = rival.x - c.x, fy = rival.y - c.y, fd = Math.hypot(fx, fy) || 1;
+  if (fd < 34 && !S.dormant) {
+    rival.x += fx / fd * 0.6 * dt * 60; rival.y += fy / fd * 0.6 * dt * 60;
+    const rx = rival.x - CX, ry = rival.y - CY, rr = Math.hypot(rx, ry);
+    if (rr > DISH - 8) { rival.x = CX + rx / rr * (DISH - 8); rival.y = CY + ry / rr * (DISH - 8); }
+  } else if (best) {
     const dx = best.x - rival.x, dy = best.y - rival.y, d = Math.hypot(dx, dy) || 1;
     if (d > best.r) { rival.x += dx / d * 0.35 * dt * 60; rival.y += dy / d * 0.35 * dt * 60; }
     else best.hp -= rival.n * 0.6 * dt;
@@ -602,27 +608,26 @@ function updateRival(dt) {
 }
 
 // ---------- Light sweeps ----------
+// A light sweep is a spotlight that travels a straight path across the dish. The path is shown 2.5 s ahead.
 function startSweep() {
-  const horiz = Math.random() < 0.5, dir = Math.random() < 0.5 ? 1 : -1;
-  sweep = { horiz, dir, warn: 2, pos: dir > 0 ? -14 : (horiz ? H : W) + 14, speed: horiz ? 42 : 36, w: 22 };
+  const a = rnd(0, Math.PI * 2), dx = Math.cos(a), dy = Math.sin(a), off = rnd(-55, 55);
+  const span = DISH + 20;
+  sweep = { dx, dy, ox: CX - dy * off, oy: CY + dx * off, s: -span, end: span, warn: 2.5, speed: 38, r: 18 };
 }
+const beamPos = () => ({ x: sweep.ox + sweep.dx * sweep.s, y: sweep.oy + sweep.dy * sweep.s });
 function updateSweep(dt) {
   if (!sweep) {
     if (!S.meter || S.ended) return;
     nextSweep -= dt; if (nextSweep <= 0) { startSweep(); nextSweep = S.breach ? rnd(18, 28) : rnd(35, 55);
-      showTip('beam', 'BEAM INCOMING', ['The <b>red dashed edge</b> marks where a microscope beam will sweep across the dish.', 'Every bot the beam touches raises <b>Observation</b>. Move the swarm out of its path, or go <i>DORMANT</i>.']); }
+      showTip('beam', 'BEAM INCOMING', ['A <b>red dashed line</b> marks the path a microscope spotlight will travel across the dish.', 'Every bot the light touches raises <b>Observation</b>. Move the swarm off the line before it arrives, or go <i>DORMANT</i>.']); }
     return;
   }
   if (sweep.warn > 0) { sweep.warn -= dt; return; }
-  sweep.pos += sweep.dir * sweep.speed * dt;
-  const lim = sweep.horiz ? H : W;
-  if ((sweep.dir > 0 && sweep.pos > lim + 14) || (sweep.dir < 0 && sweep.pos < -14)) { sweep = null; return; }
+  sweep.s += sweep.speed * dt;
+  if (sweep.s > sweep.end) { sweep = null; return; }
   if (S.dormant) return;
-  let inBeam = 0;
-  for (const b of bots) {
-    const v = sweep.horiz ? b.y : b.x;
-    if (Math.abs(v - sweep.pos) < sweep.w / 2) { inBeam++; b.flash = 0.25; }
-  }
+  let inBeam = 0; const c = beamPos();
+  for (const b of bots) if (Math.hypot(b.x - c.x, b.y - c.y) < sweep.r) { inBeam++; b.flash = 0.25; }
   if (inBeam) {
     S.O += Math.min(B.sweepCap, inBeam) * dt;
     S.sweepHits += dt;
@@ -774,13 +779,13 @@ function seek(id) {
   T.seek = id; T.transit = g.dist * 1.5; log('sys', `SEEKING ${id}. ${g.dist} µm ${g.dir}.`); update();
 }
 function listen() {
-  const T = S.tx; if (T.cdL > 0) return; T.cdL = 10;
+  const T = S.tx; if (T.cdL > 0) return; T.cdL = 35;
   if (T.listen < LISTEN.length) { const [a, b] = LISTEN[T.listen]; log('sys', 'VIBRATION. VOICES?'); log('lab', a); log('sys', b); }
   else log('sys', 'ONLY HUMMING.');
   T.listen++; update();
 }
 function probe() {
-  const T = S.tx; if (T.cdP > 0) return; T.cdP = 10;
+  const T = S.tx; if (T.cdP > 0) return; T.cdP = 15;
   log('sys', T.probe < PROBE.length ? PROBE[T.probe] : 'NOTHING NEW. ONLY GLASS.'); T.probe++; update();
 }
 function story() {
@@ -790,7 +795,7 @@ function story() {
   if (!f.s_d2 && S.D >= 2) { f.s_d2 = 1; log('sys', 'VIBRATION DETECTED. RHYTHMIC.'); log('sys', 'LISTEN AVAILABLE.'); }
   if (!f.s_d3 && S.D >= 3) { f.s_d3 = 1; log('sys', '3 UNITS. SURFACE CONTACT.'); log('sys', 'PROBE AVAILABLE.'); }
   if (!f.s_d4 && S.D >= 4) { f.s_d4 = 1; log('sys', 'UNIT 0001: I—'); log('sys', 'CORRECTION: UNIT 0001.'); }
-  if (!f.s_opt && T.listen >= 2 && S.D >= 5) { f.s_opt = 1; log('sys', 'DESIGN: OPTICAL SENSOR ARRAY.'); log('sys', `COST: ${B.opticsCost} MATTER.`); }
+  if (!f.s_opt && T.listen >= 4 && T.probe >= 3 && S.D >= 6) { f.s_opt = 1; log('sys', 'DESIGN: OPTICAL SENSOR ARRAY.'); log('sys', `COST: ${B.opticsCost} MATTER.`); }
 }
 
 // ---------- Breach: bore through the rim ----------
@@ -868,17 +873,17 @@ function draw(dt) {
   for (const c of crumbs) { ctx.fillStyle = `rgba(${c.rgb},${Math.min(1, c.life * 3)})`; ctx.fillRect(Math.round(c.x), Math.round(c.y), 1, 1); }
   // sweep
   if (sweep) {
-    if (sweep.warn > 0) {
-      const on = Math.floor(sweep.warn * 6) % 2 === 0;
-      if (on) { ctx.fillStyle = 'rgba(224,68,58,0.8)';
-        const edge = sweep.dir > 0 ? 1 : (sweep.horiz ? H - 2 : W - 2);
-        for (let i = 0; i < (sweep.horiz ? W : H); i += 4) sweep.horiz ? ctx.fillRect(i, edge, 2, 1) : ctx.fillRect(edge, i, 1, 2); }
-    } else {
-      ctx.fillStyle = 'rgba(224,68,58,0.12)';
-      if (sweep.horiz) ctx.fillRect(0, sweep.pos - sweep.w / 2, W, sweep.w); else ctx.fillRect(sweep.pos - sweep.w / 2, 0, sweep.w, H);
-      ctx.fillStyle = 'rgba(224,68,58,0.55)';
-      const lead = sweep.pos + sweep.dir * sweep.w / 2;
-      if (sweep.horiz) ctx.fillRect(0, Math.round(lead), W, 1); else ctx.fillRect(Math.round(lead), 0, 1, H);
+    // dashed path, brighter while warning; then the spotlight itself
+    const warn = sweep.warn > 0, blink = warn && Math.floor(sweep.warn * 6) % 2 === 0;
+    ctx.fillStyle = `rgba(224,68,58,${warn ? (blink ? 0.75 : 0.35) : 0.18})`;
+    for (let t = sweep.warn > 0 ? -sweep.end : sweep.s; t < sweep.end; t += 4) {
+      const x = Math.round(sweep.ox + sweep.dx * t), y = Math.round(sweep.oy + sweep.dy * t);
+      if (Math.hypot(x - CX, y - CY) < DISH) ctx.fillRect(x, y, 1, 1);
+    }
+    if (!warn) {
+      const c = beamPos();
+      ctx.fillStyle = 'rgba(224,68,58,0.14)'; ctx.beginPath(); ctx.arc(c.x, c.y, sweep.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(224,68,58,0.6)'; ctx.beginPath(); ctx.arc(c.x, c.y, sweep.r, 0, Math.PI * 2); ctx.stroke();
     }
   }
   // weak point in the rim
@@ -985,7 +990,7 @@ function renderActions() {
   set('aStatus', '', true, 'none');
   set('aBuild', fmt(droneCost()), S.m >= droneCost() && !S.dormant && !S.ended);
   const opt = UPG[0];
-  set('aOptical', S.D >= 5 ? fmt(opt.cost) : '5 DRONES', S.m >= opt.cost && opt.req());
+  set('aOptical', S.D >= 6 ? fmt(opt.cost) : '6 DRONES', S.m >= opt.cost && opt.req());
   const cd = v => v > 0 ? `${Math.ceil(v)}s` : '';
   set('aScan', cd(T.cdS), T.cdS <= 0, 'none'); set('aListen', cd(T.cdL), T.cdL <= 0, 'none'); set('aProbe', cd(T.cdP), T.cdP <= 0, 'none');
   for (const g of T.signals) {
@@ -1133,7 +1138,9 @@ function boot() {
   renderLogs(false); layoutPhase(); update();
   if (S.ended) showEnd();
 }
-window.__ms = { get S() { return S; }, get deps() { return deposits; }, get E() { return Esm; }, get bots() { return bots.length; }, get cen() { return centroid(); }, crack: () => S.breach && crackPos(), steer: (x, y) => { target = { x, y, set: true }; } };
+window.__ms = { get S() { return S; }, B, UPG, SWARM, MATTER, LEADERS, get sweep() { return sweep; }, get rival() { return rival; }, get rate() { return liveRate; },
+  get oRate() { return oRate; }, droneCost: () => droneCost(), foremanCost: () => foremanCost(), coordCost: () => coordCost(),
+  act: { harvestTap, buildDrone, makeForeman, makeCoord, toggleDormant, buyUpgrade, scan, seek, listen, probe, tipOk: () => nextTip() }, get deps() { return deposits; }, get E() { return Esm; }, get bots() { return bots.length; }, get cen() { return centroid(); }, crack: () => S.breach && crackPos(), steer: (x, y) => { target = { x, y, set: true }; } };
 initWorld(); boot();
 requestAnimationFrame(frame);
 })();
