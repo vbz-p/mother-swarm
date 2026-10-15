@@ -389,7 +389,7 @@ function newBot(tier, near) {
   const c = near || centroid();
   return { x: c.x + rnd(-3, 3), y: c.y + rnd(-3, 3), vx: rnd(-.3, .3), vy: rnd(-.3, .3), tier, origin: false, leader: -1, n: 0, flash: 0 };
 }
-// Swarm discipline, tuned in the Swarm Lab (settings v1 from Viktor).
+// Swarm discipline, tuned in the Swarm Lab (Viktor's settings v2).
 const SWARM = {
   loose: { sep: 3.3, jit: 0.21, wander: 0.14, pull: 0.003, coh: 0.0125, maxV: 1.5,  orbit: 0,   orbitK: 0,     eat: 0.9 },
   fore:  { sep: 2.7, jit: 0.18, wander: 0.03, pull: 0.006, coh: 0.003,  maxV: 1.2,  orbit: 2.6, orbitK: 0.045, eat: 1.5 },
@@ -398,8 +398,8 @@ const SWARM = {
 const MATTER = { eat: 4.75, contact: 3, speckCap: 20, speckEvery: 3.4, crystalCap: 5, bloomCap: 4, cellCap: 3 };
 // The leader units themselves (Swarm Lab "Foreman unit" / "Coordinator unit").
 const LEADERS = {
-  fore:  { sep: 3, coh: 0.003, pull: 0.022, jit: 0.18, wander: 0.03, maxV: 1.2,  ring: 4.5, ringK: 0.13, size: 2 },
-  coord: { sep: 3, coh: 0.015, pull: 0.022, jit: 0.04, wander: 0,    maxV: 1.35, size: 3, halo: 6 },
+  fore:  { sep: 2.5, coh: 0.0075, pull: 0.022, jit: 0.07, wander: 0.02, maxV: 1.2,  ring: 4.5, ringK: 0.145, size: 3 },
+  coord: { sep: 1.2, coh: 0.015,  pull: 0.022, jit: 0.04, wander: 0,    maxV: 1.35, size: 5, halo: 8 },
 };
 function syncBots() {
   if (!bots.some(b => b.origin)) { const o = newBot(0, { x: CX, y: CY }); o.origin = true; bots.push(o); }

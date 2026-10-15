@@ -182,8 +182,8 @@ const HP_SCALE = Math.max(1, 33 / 12);   // the game scales deposits by swarm si
 const MAT = { eat: 4.75, contact: 3, speckCap: 20, speckEvery: 3.4, crystalCap: 5, bloomCap: 4, cellCap: 3 };   // Viktor's settings v1
 // The leader units themselves: how a foreman or coordinator moves, and how it looks.
 const LEAD = {
-  fore:  { name: 'Foreman unit',     sep: 3, coh: 0.003, pull: 0.022, jit: 0.18, wander: 0.03, maxV: 1.2,  ring: 4.5, ringK: 0.13, size: 2 },
-  coord: { name: 'Coordinator unit', sep: 3, coh: 0.015, pull: 0.022, jit: 0.04, wander: 0,    maxV: 1.35, size: 3, halo: 6 },
+  fore:  { name: 'Foreman unit',     sep: 2.5, coh: 0.0075, pull: 0.022, jit: 0.07, wander: 0.02, maxV: 1.2,  ring: 4.5, ringK: 0.145, size: 3 },
+  coord: { name: 'Coordinator unit', sep: 1.2, coh: 0.015,  pull: 0.022, jit: 0.04, wander: 0,    maxV: 1.35, size: 5, halo: 8 },   // Viktor's settings v2
 };
 LEVEL.coord.ringF = 4.5;
 const DEFAULTS = JSON.parse(JSON.stringify({ LEVEL, MAT, LEAD }));
