@@ -105,6 +105,31 @@ body.lefty .pad { right: auto; left: max(20px, env(safe-area-inset-left, 0px)); 
 .up button:disabled { border-color: var(--rim); color: var(--dim); cursor: default; }
 .evo { border-color: var(--cyan); }
 .evo button { border-color: var(--cyan); color: var(--cyan); font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; }
+/* Skill tree: nodes on a grid, lines drawn underneath, a detail panel below */
+.tree { position: relative; width: 100%; aspect-ratio: 7 / 9; max-height: 56vh; margin-inline: auto; }
+.tree svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tree svg line { stroke: var(--rim); stroke-width: 2; }
+.tree svg line.on { stroke: rgba(79,214,204,.55); }
+.node { position: absolute; width: 42px; height: 42px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--void);
+  border: 1px solid var(--rim); color: var(--dim); font-family: var(--f-pixel); font-size: 7px; letter-spacing: .04em; line-height: 1.1; padding: 0; display: grid; place-content: center; text-align: center; }
+.node small { font-family: var(--f-term); font-size: 13px; letter-spacing: 0; }
+.node.open { border-color: rgba(79,214,204,.6); color: var(--pale); }
+.node.buy { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 0 3px rgba(79,214,204,.18); }
+.node.owned { background: rgba(79,214,204,.14); border-color: var(--cyan); color: var(--cyan-hi); }
+.node.max { background: var(--cyan); color: var(--void); }
+.node.root { background: var(--glass); border-color: var(--mind); color: var(--mind); width: 48px; height: 48px; }
+.node.sel { outline: 2px solid var(--matter); outline-offset: 3px; }
+.detail { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; border: 1px solid var(--rim); background: var(--glass); padding: 10px 12px; min-height: 96px; }
+.detail h3 { margin: 0; font-family: var(--f-pixel); font-weight: 400; font-size: 11px; letter-spacing: .06em; }
+.detail p { margin: 0; grid-column: 1; font-size: 18px; line-height: 1.1; }
+.detail .why { color: var(--threat); font-size: 16px; }
+.detail button { grid-row: 1 / span 3; grid-column: 2; min-width: 84px; min-height: 52px; background: var(--void); border: 1px solid var(--cyan); color: var(--cyan); font-size: 20px; }
+.detail button:disabled { border-color: var(--rim); color: var(--dim); }
+.biohead { display: flex; justify-content: space-between; align-items: baseline; }
+.biohead b { font-weight: 400; font-size: 30px; color: var(--cyan-hi); }
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: 18px; }
+.legend span { display: flex; align-items: center; gap: 8px; }
+.legend canvas { width: 28px; height: 28px; image-rendering: pixelated; flex: none; }
 @media (prefers-reduced-motion: reduce) { .frame { transform: none !important; } }
 </style>
 </head>
@@ -139,8 +164,9 @@ body.lefty .pad { right: auto; left: max(20px, env(safe-area-inset-left, 0px)); 
 
   <section class="screen" id="startScreen">
     <div class="panel">
-      <h1>SAMPLE 7</h1>
-      <p id="startText">You are one unit in a petri dish. Eat. Grow. Merge. The lab will notice, and the dish will be burned clean. Each time, you come back stronger.</p>
+      <h1 id="startH">SAMPLE 1</h1>
+      <p id="startText">You are a swarm in a petri dish. Eat everything. The lab will notice, and the dish will be burned clean. What you eat feeds the swarm's growth for the next try.</p>
+      <div class="legend" id="legend"></div>
       <div class="compare" id="startCompare"></div>
       <button class="go" id="startBtn">BEGIN RUN 1</button>
     </div>
@@ -159,9 +185,17 @@ body.lefty .pad { right: auto; left: max(20px, env(safe-area-inset-left, 0px)); 
       <h2 id="endTitle">STERILIZED.</h2>
       <div class="compare" id="endCompare"></div>
       <dl class="stats" id="endStats"></dl>
-      <div class="bp"><span class="label">BLUEPRINTS</span><span><span id="bpGain"></span> <b id="bpTotal">0</b></span></div>
-      <div class="ups" id="ups"></div>
-      <button class="go" id="againBtn">BEGIN RUN 2</button>
+      <div class="bp"><span class="label">BIOMASS</span><span><span id="bpGain"></span> <b id="bpTotal">0</b></span></div>
+      <button class="go" id="againBtn">SKILL TREE</button>
+    </div>
+  </section>
+
+  <section class="screen" id="treeScreen" hidden>
+    <div class="panel">
+      <div class="biohead"><h1>GROWTH</h1><span><span class="label">BIOMASS </span><b id="bioTotal">0</b></span></div>
+      <div class="tree" id="tree"><svg id="treeLines" viewBox="0 0 700 900" preserveAspectRatio="none"></svg></div>
+      <div class="detail" id="detail"></div>
+      <button class="go" id="treeGo">BEGIN RUN</button>
     </div>
   </section>
 </div>
@@ -172,7 +206,7 @@ body.lefty .pad { right: auto; left: max(20px, env(safe-area-inset-left, 0px)); 
 // ================= CONFIG: every tuning number lives here =================
 const CONFIG = {
   // Lab attention: a slow clock, plus everything loud you do. Eating a whole dish adds obsDish %.
-  run:    { obsBase: 100 / 300, obsDish: 55, obsPulse: 9, obsForeman: 2, obsCoord: 6, obsBurst: 0.8, silence: 1.3, sweepTime: 2.4 },
+  run:    { clearAt: 95, obsBase: 100 / 300, obsDish: 55, obsPulse: 9, obsForeman: 2, obsCoord: 6, obsBurst: 0.8, silence: 1.3, sweepTime: 2.4 },
   // Spotlights: the lab looks into the dish more often as attention rises. Every drone they touch burns.
   beams:  { from: 30, everyLow: 12, everyHigh: 5, warn: 2.2, r: 11, speed: 42, aim: 28, burnRate: 7, burnRateLeader: 2.5 },
   swarm:  { start: 14, max: 4000,
@@ -182,13 +216,15 @@ const CONFIG = {
             coord: { pull: 0.024, coh: 0.015, jit: 0.04, maxV: 1.35, size: 5, halo: 8 } },
   merge:  { cell: 10, count: 10, every: 0.2, orbiters: 10, foremanMass: 12, coordFrom: 6, coordRadius: 10, coordMass: 80 },
   eat:    { drone: 1, foreman: 6, coord: 25, reach: 1.5, outTime: 0.16, suckAccel: 0.32, absorbDist: 2.5, grainsPerDrone: 5, chipCore: 0.15 },
+  // Each food has its own colour and shape: specks are bone crumbs, crystals lilac diamonds,
+  // geodes a rust shell around an amber core, volatiles acid-green four-armed stars.
   matter: { speck:    { count: 50, grains: [5, 9],    tough: 1,    r: 3,  rgb: [214, 204, 168] },
-            crystal:  { count: 22, grains: [26, 40],  tough: 2500, chip: true,  r: 7,  rgb: [234, 230, 210] },
-            geode:    { count: 5,  grains: [90, 120], tough: 9000, chip: true,  r: 12, rgb: [190, 182, 150] },
-            unstable: { count: 12, grains: [12, 18],  tough: 2,    r: 4,  rgb: [222, 226, 120], frags: [8, 12], fragDmg: 25, fragSpeed: 1.5, fragLife: 0.3 } },
+            crystal:  { count: 22, grains: [26, 40],  tough: 2500, chip: true,  r: 7,  rgb: [196, 182, 244] },
+            geode:    { count: 5,  grains: [90, 120], tough: 9000, chip: true,  r: 12, rgb: [236, 168, 78] },
+            unstable: { count: 12, grains: [12, 18],  tough: 2,    r: 5,  rgb: [190, 245, 80], frags: [8, 12], fragDmg: 25, fragSpeed: 1.5, fragLife: 0.3 } },
   pulse:  { radius: 24, cooldown: 15, contract: 0.32, damage: 150, push: 1.6 },
   juice:  { shakeMerge: 2, shakeCoord: 5, shakeChain: 1.2, hitMerge: 3, hitCoord: 7, hitChain: 4, comboWindow: 0.7 },
-  meta:   { bpPerPct: 0.3, bpPerForeman: 0.4, bpPerCoord: 1.5, dishBonus: 10 },
+  meta:   { bioPerGrain: 0.15, clearBonus: 0.25 },   // biomass per grain absorbed in the run; clearing a sample adds 25%
   // Evolutions are chosen when a dish is fully consumed, and kept for good.
   evolutions: [
     { id: 'foreman', name: 'Promote Foreman', desc: 'Ten crowded drones collapse into a Foreman: a hard-biting unit that leads its own tight ring. Merging is loud.' },
@@ -196,14 +232,32 @@ const CONFIG = {
     { id: 'pulse',   name: 'Consume Pulse',   desc: 'An ability: the swarm contracts, then bursts outward and cracks everything around it. Very loud.' },
     { id: 'coord',   name: 'Coordinator',     desc: 'Six Foremen packed together collapse into a Coordinator that bites like a small swarm.', req: 'foreman' },
     { id: 'gut',     name: 'Deep Gut',        desc: 'Every 4 grains grow a new drone instead of every 5.' },
-    { id: 'cold',    name: 'Cold Blood',      desc: 'Spotlights are 30% narrower: the lab has a harder time seeing you.' },
+    { id: 'cold',    name: 'Cold Skin',       desc: 'Spotlights are 30% narrower: the lab has a harder time seeing you.' },
   ],
-  upgrades: [
-    { id: 'seed',     name: 'Seed Reserve',  desc: '+12 drones at the start of a run',      cost: 6,  grow: 1.7, max: 5 },
-    { id: 'mandible', name: 'Mandibles',     desc: 'Crack matter 35% faster',               cost: 8,  grow: 1.7, max: 5 },
-    { id: 'mask',     name: 'Thermal Mask',  desc: 'Everything you do draws 12% less attention', cost: 10, grow: 1.8, max: 4 },
-    { id: 'gland',    name: 'Pulse Gland',   desc: 'Pulse 20% wider, recharges 15% faster', cost: 8,  grow: 1.8, max: 4, needs: 'pulse' },
-    { id: 'fertile',  name: 'Fertile Grains',desc: 'Grains grow 25% more drones',  cost: 12, grow: 1.9, max: 4 },
+  // Skill tree, paid in biomass. x,y are grid cells (7 x 9); req: [node, level]; evo: needs that evolution.
+  tree: [
+    { id: 'root',  x: 3, y: 4, name: 'Hunger', short: 'HUN', desc: 'The swarm wants. Everything grows from here.', max: 0 },
+    { id: 'jaw1',  x: 3, y: 3, name: 'Mandibles I', short: 'JAW', desc: '+10% bite per level.', max: 5, cost: 15, grow: 1.5, req: ['root', 0] },
+    { id: 'acid',  x: 4, y: 2, name: 'Acid Spit', short: 'ACD', desc: 'Crystals and geodes take +30% damage per level.', max: 3, cost: 80, grow: 1.8, req: ['jaw1', 3] },
+    { id: 'reach', x: 2, y: 2, name: 'Long Jaws', short: 'RCH', desc: 'Drones eat from 0.5 px further away per level.', max: 2, cost: 60, grow: 2, req: ['jaw1', 2] },
+    { id: 'jaw2',  x: 3, y: 1, name: 'Mandibles II', short: 'JAW2', desc: '+25% bite per level.', max: 3, cost: 150, grow: 1.8, req: ['jaw1', 5] },
+    { id: 'jaw3',  x: 3, y: 0, name: 'Bone Saw', short: 'SAW', desc: '+60% bite.', max: 1, cost: 900, grow: 1, req: ['jaw2', 3] },
+    { id: 'seed1', x: 2, y: 4, name: 'Seed Reserve', short: 'SEED', desc: '+4 drones at the start of a run, per level.', max: 5, cost: 12, grow: 1.45, req: ['root', 0] },
+    { id: 'fert',  x: 1, y: 3, name: 'Fertile Grains', short: 'FRT', desc: '+10% chance per level that a grain counts twice.', max: 5, cost: 40, grow: 1.5, req: ['seed1', 2] },
+    { id: 'seed2', x: 1, y: 4, name: 'Brood Sac', short: 'BRD', desc: '+12 drones at the start of a run, per level.', max: 3, cost: 120, grow: 1.8, req: ['seed1', 5] },
+    { id: 'gut',   x: 1, y: 5, name: 'Deep Gut', short: 'GUT', desc: 'One fewer grain needed per new drone, per level.', max: 2, cost: 200, grow: 3, req: ['fert', 3] },
+    { id: 'hatch', x: 0, y: 4, name: 'Hatchery', short: 'HTC', desc: 'Start every run with a Foreman.', max: 1, cost: 400, grow: 1, req: ['seed2', 2], evo: 'foreman' },
+    { id: 'quiet', x: 4, y: 4, name: 'Quiet Feeding', short: 'QUI', desc: 'Everything you do draws 6% less attention, per level.', max: 5, cost: 15, grow: 1.5, req: ['root', 0] },
+    { id: 'cold',  x: 5, y: 3, name: 'Cold Blood', short: 'CLD', desc: 'Spotlights 10% narrower per level.', max: 3, cost: 50, grow: 1.7, req: ['quiet', 2] },
+    { id: 'late',  x: 5, y: 4, name: 'Late Shift', short: 'LATE', desc: 'Spotlights start 8% later per level.', max: 3, cost: 70, grow: 1.7, req: ['quiet', 3] },
+    { id: 'skin',  x: 5, y: 5, name: 'Thick Skin', short: 'SKN', desc: 'Spotlights burn 15% slower per level.', max: 3, cost: 90, grow: 1.8, req: ['quiet', 3] },
+    { id: 'night', x: 6, y: 4, name: 'Long Night', short: 'NGT', desc: 'The clock draws 40% less attention.', max: 1, cost: 600, grow: 1, req: ['late', 3] },
+    { id: 'swift', x: 3, y: 5, name: 'Swift', short: 'SPD', desc: '+8% swarm speed per level.', max: 4, cost: 20, grow: 1.5, req: ['root', 0] },
+    { id: 'grip',  x: 2, y: 6, name: 'Tight Grip', short: 'GRP', desc: 'The swarm follows your drag 20% more firmly, per level.', max: 3, cost: 50, grow: 1.7, req: ['swift', 2] },
+    { id: 'drill', x: 2, y: 7, name: 'Drill Sergeant', short: 'DRL', desc: 'Foremen pull in 5 more drones per level.', max: 2, cost: 150, grow: 2, req: ['grip', 2], evo: 'foreman' },
+    { id: 'vola',  x: 3, y: 7, name: 'Volatile Gut', short: 'VOL', desc: 'Bursts throw 30% more fragments per level.', max: 2, cost: 150, grow: 2, req: ['swift', 3], evo: 'chain' },
+    { id: 'gland', x: 4, y: 6, name: 'Pulse Gland', short: 'GLD', desc: 'Pulse 15% wider per level.', max: 3, cost: 80, grow: 1.8, req: ['swift', 2], evo: 'pulse' },
+    { id: 'echo',  x: 4, y: 7, name: 'Echo', short: 'ECH', desc: 'Pulse recharges 20% faster per level.', max: 3, cost: 150, grow: 1.8, req: ['gland', 2], evo: 'pulse' },
   ],
 };
 
@@ -224,18 +278,38 @@ for (let i = 0; i < 256; i++) { const t = i / 255; bgLUT[i] = rgba(Math.round(6 
 const C_OUT = rgba(3, 5, 5), C_RIM = rgba(40, 52, 52);
 
 // ================= Meta progress (saved per browser) =================
-const META_KEY = 'mother-swarm-runs-v2';
-let meta = { bp: 0, runs: 0, up: {}, dish: 1, dishState: null, evo: {}, bestMass: 0 };
+const META_KEY = 'mother-swarm-runs-v3';
+const freshMeta = () => ({ bio: 0, runs: 0, tree: {}, dish: 1, evo: {}, best: {}, bestMass: 0 });
+let meta = freshMeta();
 try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) {}
 const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} };
-const lvl = id => meta.up[id] || 0;
+const T = id => meta.tree[id] || 0;   // skill tree level
 const evo = id => !!meta.evo[id];
-const maskF = () => Math.pow(0.88, lvl('mask'));
+const maskF = () => Math.pow(0.94, T('quiet'));
+// what the tree does
+const FX = {
+  bite: () => (1 + 0.1 * T('jaw1')) * (1 + 0.25 * T('jaw2')) * (1 + 0.6 * T('jaw3')),
+  hard: kind => (kind === 'crystal' || kind === 'geode') ? 1 + 0.3 * T('acid') : 1,
+  reach: () => CONFIG.eat.reach + 0.5 * T('reach'),
+  start: () => CONFIG.swarm.start + 4 * T('seed1') + 12 * T('seed2'),
+  twice: () => 0.1 * T('fert'),
+  gpd: () => Math.max(2, CONFIG.eat.grainsPerDrone - T('gut') - (evo('gut') ? 1 : 0)),
+  clock: () => 1 - 0.4 * T('night'),
+  beamR: () => (1 - 0.1 * T('cold')) * (evo('cold') ? 0.7 : 1),
+  beamFrom: () => (dishSpec(meta.dish).beamFrom || CONFIG.beams.from) + 8 * T('late'),
+  burn: () => 1 - 0.15 * T('skin'),
+  speed: () => 1 + 0.08 * T('swift'),
+  grip: () => 1 + 0.2 * T('grip'),
+  orbiters: () => CONFIG.merge.orbiters + 5 * T('drill'),
+  frags: () => 1 + 0.3 * T('vola'),
+  pulseR: () => CONFIG.pulse.radius * (1 + 0.15 * T('gland')),
+  pulseCD: () => CONFIG.pulse.cooldown * Math.pow(0.8, T('echo')),
+};
 // Each sample (dish) is one fixed layout. Later samples are bigger and tougher and add new matter.
 function dishSpec(d) {
-  if (d === 1) return { speck: { count: 55, tough: 1 }, crystal: { count: 11, tough: 450, grains: [18, 28] }, geode: { count: 0 }, unstable: { count: 0 } };
-  if (d === 2) return { speck: { count: 45, tough: 1 }, crystal: { count: 15, tough: 900 }, geode: { count: 1, tough: 2500 }, unstable: { count: 10, tough: 2 } };
-  if (d === 3) return { speck: { count: 40, tough: 1 }, crystal: { count: 18, tough: 1100 }, geode: { count: 3, tough: 5000 }, unstable: { count: 12, tough: 2 } };
+  if (d === 1) return { speck: { count: 55, tough: 1 }, crystal: { count: 11, tough: 380, grains: [18, 28] }, geode: { count: 0 }, unstable: { count: 0 }, beamFrom: 50 };
+  if (d === 2) return { speck: { count: 45, tough: 1 }, crystal: { count: 15, tough: 1100 }, geode: { count: 1, tough: 3000 }, unstable: { count: 10, tough: 2 }, beamFrom: 35 };
+  if (d === 3) return { speck: { count: 40, tough: 1 }, crystal: { count: 18, tough: 1000 }, geode: { count: 3, tough: 4200 }, unstable: { count: 12, tough: 2 } };
   const k = Math.pow(1.35, d - 3);
   return { speck: { count: 36, tough: 1 }, crystal: { count: 20, tough: Math.round(1100 * k) }, geode: { count: 4, tough: Math.round(5000 * k) }, unstable: { count: 12, tough: 2 } };
 }
@@ -299,7 +373,7 @@ $('menuBtn').onclick = () => { menuOpen = true; wipeArmed = false; $('wipeBtn').
 $('closeMenu').onclick = () => { menuOpen = false; $('menuScreen').hidden = true; };
 $('wipeBtn').onclick = () => {
   if (!wipeArmed) { wipeArmed = true; $('wipeBtn').textContent = 'TAP AGAIN TO ERASE'; return; }
-  meta = { bp: 0, runs: 0, up: {}, dish: 1, dishState: null, evo: {}, bestMass: 0 }; saveMeta(); location.reload();
+  meta = freshMeta(); saveMeta(); location.reload();
 };
 
 // ================= World state =================
@@ -326,10 +400,11 @@ function newRun() {
         target: { x: CX, y: CY }, touching: false, mergeT: 0, hit: 0, shake: 0, pulseCD: 0, pulse: null, phaseT: 0,
         chains: new Map(), nextChain: 1, floaters: [], rings: [], sweepX: -30, empty: false, bpGain: 0 };
   n = 0; np = 0; foremen = []; coords = []; trail.fill(0);
-  const start = CONFIG.swarm.start + 12 * lvl('seed');
+  const start = FX.start();
   for (let i = 0; i < start; i++) { const p = inDish(10); addDrone(p.x, p.y); }
   layoutMatter();
-  R.pctStart = dishPct();
+  R.pctStart = 0;
+  if (T('hatch') && evo('foreman')) foremen.push({ x: CX, y: CY - 4, vx: 0, vy: 0, wa: 0, lead: -1, born: 0 });
 }
 function addDrone(x, y) {
   if (n >= MAXD) return false;
@@ -345,13 +420,32 @@ function removeParticle(i) { np--; if (i !== np) { ptype[i] = ptype[np]; px[i] =
 
 // ================= Matter =================
 function makeDep(kind, pos, spec) {
-  const T = Object.assign({}, CONFIG.matter[kind], spec || {}), g = Math.round(rnd(T.grains[0], T.grains[1])), grains = [];
-  const pts = [];
-  for (let i = 0; i < g; i++) { const a = rnd(0, 6.283), d = T.r * Math.sqrt(Math.random()); pts.push([Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * (kind === 'crystal' ? 0.75 : 1))]); }
+  const TT = Object.assign({}, CONFIG.matter[kind], spec || {}), g = Math.round(rnd(TT.grains[0], TT.grains[1])), rr = TT.r;
+  const pts = [], tilt = rnd(0, 0.8);
+  for (let i = 0; i < g; i++) {
+    let x, y;
+    if (kind === 'crystal') {            // a diamond: |x|/r + |y|/(1.3r) <= 1
+      do { x = rnd(-rr, rr); y = rnd(-rr * 1.3, rr * 1.3); } while (Math.abs(x) / rr + Math.abs(y) / (rr * 1.3) > 1);
+    } else if (kind === 'unstable') {    // a four-armed star
+      const arm = Math.floor(Math.random() * 4), t = Math.random() * rr, a = tilt + arm * Math.PI / 2;
+      x = Math.cos(a) * t + rnd(-0.6, 0.6); y = Math.sin(a) * t + rnd(-0.6, 0.6);
+    } else { const a = rnd(0, 6.283), d = rr * Math.sqrt(Math.random()); x = Math.cos(a) * d; y = Math.sin(a) * d; }
+    pts.push([Math.round(x), Math.round(y)]);
+  }
   pts.sort((p, q) => (p[0] * p[0] + p[1] * p[1]) - (q[0] * q[0] + q[1] * q[1]));   // inner first, so the outer edge chips off first
-  for (const [x, y] of pts) grains.push(x, y);
-  const shade = rnd(0.85, 1.05), [r, gg, b] = T.rgb;
-  return { kind, x: Math.round(pos.x), y: Math.round(pos.y), r: T.r, hp: T.tough, max: T.tough, grains, g0: g, chip: !!T.chip, col: rgba(Math.min(255, r * shade) | 0, Math.min(255, gg * shade) | 0, Math.min(255, b * shade) | 0),
+  const grains = [], gcol = [], shade = rnd(0.88, 1.05), [r0, g0, b0] = TT.rgb;
+  const mix = (c, k) => rgba(Math.min(255, c[0] * k) | 0, Math.min(255, c[1] * k) | 0, Math.min(255, c[2] * k) | 0);
+  for (const [x, y] of pts) {
+    grains.push(x, y);
+    const d = Math.hypot(x, y) / rr;
+    let c = [r0, g0, b0], k = shade;
+    if (kind === 'geode') c = d > 0.72 ? [138, 78, 50] : d < 0.3 ? [255, 214, 130] : c;                 // rust shell, amber, bright core
+    if (kind === 'crystal') { const e = Math.abs(x) / rr + Math.abs(y) / (rr * 1.3); if (e > 0.72) c = [232, 224, 255]; }   // bright facets
+    if (kind === 'unstable' && d < 0.3) c = [235, 255, 170];
+    if (kind === 'speck') k *= rnd(0.85, 1.1);
+    gcol.push(mix(c, k));
+  }
+  return { kind, x: Math.round(pos.x), y: Math.round(pos.y), r: rr, hp: TT.tough, max: TT.tough, grains, gcol, g0: g, chip: !!TT.chip, col: mix(TT.rgb, shade),
     alive: true, crackT: 0, seed: Math.random() * 6 };
 }
 function freeSpot(r, near) {
@@ -368,16 +462,6 @@ function seeded(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; 
 function layoutMatter() {
   const realRandom = Math.random; Math.random = seeded(meta.dish * 7 + 1);
   try { layoutMatterInner(dishSpec(meta.dish)); } finally { Math.random = realRandom; }
-  // apply what earlier runs already ate
-  if (meta.dishState && meta.dishState.length === deps.length) {
-    deps.forEach((d, k) => {
-      const [g, hp] = meta.dishState[k];
-      if (!g) { d.alive = false; d.grains = []; return; }
-      d.grains = d.grains.slice(0, g * 2); d.hp = Math.min(d.hp, hp);
-      const m2 = d.grains.length; if (d.chip && m2) d.r = Math.max(2, Math.min(d.r, Math.hypot(d.grains[m2 - 2], d.grains[m2 - 1]) + 1));
-    });
-    rebuildDepGrid();
-  }
 }
 const grainsLeft = () => deps.reduce((s, d) => s + (d.alive ? d.grains.length / 2 : 0), 0);
 const dishPct = () => Math.min(100, (1 - grainsLeft() / totalGrains) * 100);
@@ -415,8 +499,8 @@ function damage(k, amt, chain) {
     const keep = Math.ceil(d.g0 * (CONFIG.eat.chipCore + (1 - CONFIG.eat.chipCore) * d.hp / d.max));
     let chipped = 0;
     while (d.grains.length / 2 > keep) {
-      const gy = d.grains.pop(), gx = d.grains.pop(), a = Math.atan2(gy, gx) + rnd(-.4, .4), sp = rnd(0.4, 0.9);
-      addParticle(P_OUT, d.x + gx, d.y + gy, Math.cos(a) * sp, Math.sin(a) * sp, CONFIG.eat.outTime, d.col, chain);
+      const gy = d.grains.pop(), gx = d.grains.pop(), gc = d.gcol.pop(), a = Math.atan2(gy, gx) + rnd(-.4, .4), sp = rnd(0.4, 0.9);
+      addParticle(P_OUT, d.x + gx, d.y + gy, Math.cos(a) * sp, Math.sin(a) * sp, CONFIG.eat.outTime, gc, chain);
       chipped++;
     }
     if (chipped) {
@@ -433,15 +517,15 @@ function shatter(k, chain) {
   const g = d.grains.length / 2, T = CONFIG.matter[d.kind];
   for (let i = 0; i < d.grains.length; i += 2) {
     const gx = d.x + d.grains[i], gy = d.y + d.grains[i + 1], a = Math.atan2(d.grains[i + 1], d.grains[i]) + rnd(-.5, .5), sp = rnd(0.3, 1.1);
-    addParticle(P_OUT, gx, gy, Math.cos(a) * sp, Math.sin(a) * sp, CONFIG.eat.outTime * rnd(0.6, 1.4), d.col, chain);
+    addParticle(P_OUT, gx, gy, Math.cos(a) * sp, Math.sin(a) * sp, CONFIG.eat.outTime * rnd(0.6, 1.4), d.gcol[i / 2], chain);
   }
   R.rings.push({ x: d.x, y: d.y, r: d.r, max: d.r + 6 + g * 0.08, t: 0.25, col: '214,204,168' });
   if (d.kind === 'unstable' && evo('chain')) {
     R.O += CONFIG.run.obsBurst * maskF();
     const c = chain || R.nextChain++;
-    const nf = Math.round(rnd(T.frags[0], T.frags[1]));
-    for (let i = 0; i < nf; i++) { const a = (i / nf) * 6.283 + rnd(-.2, .2); addParticle(P_FRAG, d.x, d.y, Math.cos(a) * T.fragSpeed, Math.sin(a) * T.fragSpeed, T.fragLife, rgba(240, 245, 150), c); }
-    R.rings.push({ x: d.x, y: d.y, r: 2, max: 22, t: 0.3, col: '226,230,120' });
+    const nf = Math.round(rnd(T.frags[0], T.frags[1]) * FX.frags());
+    for (let i = 0; i < nf; i++) { const a = (i / nf) * 6.283 + rnd(-.2, .2); addParticle(P_FRAG, d.x, d.y, Math.cos(a) * T.fragSpeed, Math.sin(a) * T.fragSpeed, T.fragLife, rgba(220, 255, 120), c); }
+    R.rings.push({ x: d.x, y: d.y, r: 2, max: 22, t: 0.3, col: '190,245,80' });
     sfx.burst(); R.shake = Math.max(R.shake, 1.5);
     noteChain(c, d, g);
   } else {
@@ -483,7 +567,7 @@ function tryMerge() {
     const fi = foremen.length - 1;
     // recruit the nearest loose drones as orbiters
     let rec = 0;
-    for (let i = 0; i < n && rec < M.orbiters; i++) if (dlead[i] === -1 && Math.hypot(dx_[i] - f.x, dy_[i] - f.y) < 16) { dlead[i] = fi; rec++; }
+    for (let i = 0; i < n && rec < FX.orbiters(); i++) if (dlead[i] === -1 && Math.hypot(dx_[i] - f.x, dy_[i] - f.y) < 16) { dlead[i] = fi; rec++; }
     R.foremenMade++; R.O += CONFIG.run.obsForeman * maskF();
     R.rings.push({ x: f.x, y: f.y, r: 2, max: 18, t: 0.35, col: '166,255,246' });
     R.hit = Math.max(R.hit, CONFIG.juice.hitMerge); R.shake = Math.max(R.shake, CONFIG.juice.shakeMerge);
@@ -533,7 +617,7 @@ function step(dt) {
   const S = CONFIG.swarm, E = CONFIG.eat, cen = centroid();
   let tx = R.target.x, ty = R.target.y;
   const pulseCon = R.pulse && R.pulse.phase === 'contract';
-  const crack = (1 + 0.35 * lvl('mandible'));
+  const crack = FX.bite(), sp_ = FX.speed(), grip = FX.grip(), reach = FX.reach();
   // leaders
   for (const c of coords) {
     const P = S.coord;
@@ -541,7 +625,7 @@ function step(dt) {
     c.vy = c.vy * 0.9 + (ty - c.y) * P.pull + (cen.y - c.y) * P.coh + rnd(-P.jit, P.jit);
     const sp = Math.hypot(c.vx, c.vy); if (sp > P.maxV) { c.vx *= P.maxV / sp; c.vy *= P.maxV / sp; }
     c.x += c.vx; c.y += c.vy; clampDish(c, DISH - 3);
-    const k = depAt(c.x, c.y, 3); if (k >= 0) damage(k, E.coord * crack * dt, 0);
+    const k = depAt(c.x, c.y, 3); if (k >= 0) damage(k, E.coord * crack * FX.hard(deps[k].kind) * dt, 0);
   }
   for (const f of foremen) {
     const P = S.foreman;
@@ -552,7 +636,7 @@ function step(dt) {
     f.vy = f.vy * 0.9 + ay + (cen.y - f.y) * P.coh + rnd(-P.jit, P.jit);
     const sp = Math.hypot(f.vx, f.vy); if (sp > P.maxV) { f.vx *= P.maxV / sp; f.vy *= P.maxV / sp; }
     f.x += f.vx; f.y += f.vy; clampDish(f, DISH - 2);
-    const k = depAt(f.x, f.y, 2); if (k >= 0) damage(k, E.foreman * crack * dt, 0);
+    const k = depAt(f.x, f.y, 2); if (k >= 0) damage(k, E.foreman * crack * FX.hard(deps[k].kind) * dt, 0);
   }
   // spatial grid for separation
   sHead.fill(-1);
@@ -572,21 +656,21 @@ function step(dt) {
       if (Ld) { const ddx = Ld.x - x, ddy = Ld.y - y, d = Math.hypot(ddx, ddy) || 1, ring = L >= 0 ? P.ring : P.ring + 3;
         fx += ddx / d * (d - ring) * P.ringK - ddy / d * 0.03; fy += ddy / d * (d - ring) * P.ringK + ddx / d * 0.03; }
       else dlead[i] = -1;
-      fx += (tx - x) * P.pull; fy += (ty - y) * P.pull;
+      fx += (tx - x) * P.pull * grip; fy += (ty - y) * P.pull * grip;
     } else {
-      fx += (tx - x) * P.pull + (cen.x - x) * S.loose.coh; fy += (ty - y) * P.pull + (cen.y - y) * S.loose.coh;
+      fx += (tx - x) * P.pull * grip + (cen.x - x) * S.loose.coh; fy += (ty - y) * P.pull * grip + (cen.y - y) * S.loose.coh;
     }
     if (pulseCon) { fx += (cen.x - x) * 0.06; fy += (cen.y - y) * 0.06; }
     dwa[i] += rnd(-0.25, 0.25);
     fx += Math.cos(dwa[i]) * P.wander + rnd(-P.jit, P.jit); fy += Math.sin(dwa[i]) * P.wander + rnd(-P.jit, P.jit);
     let vx = dvx[i] * 0.9 + fx, vy = dvy[i] * 0.9 + fy;
-    const sp = Math.hypot(vx, vy), cap = P.maxV * heavy; if (sp > cap) { vx *= cap / sp; vy *= cap / sp; }
+    const sp = Math.hypot(vx, vy), cap = P.maxV * heavy * sp_; if (sp > cap) { vx *= cap / sp; vy *= cap / sp; }
     x += vx; y += vy;
     const rx = x - CX, ry = y - CY, rr = rx * rx + ry * ry;
     if (rr > (DISH - 1) * (DISH - 1)) { const d = Math.sqrt(rr); x = CX + rx / d * (DISH - 1); y = CY + ry / d * (DISH - 1); vx *= -0.3; vy *= -0.3; }
     dx_[i] = x; dy_[i] = y; dvx[i] = vx; dvy[i] = vy;
     const ti = (y | 0) * W + (x | 0); if (trail[ti] < 200) trail[ti] += 2;
-    const k = depAt(x, y, E.reach); if (k >= 0) damage(k, E.drone * (orb ? 1.5 : 1) * crack * dt, 0);
+    const k = depAt(x, y, reach); if (k >= 0) damage(k, E.drone * (orb ? 1.5 : 1) * crack * FX.hard(deps[k].kind) * dt, 0);
   }
   // particles
   let absorbed = 0;
@@ -609,8 +693,8 @@ function step(dt) {
       if (d < E.absorbDist || pt[i] <= 0) {
         const x = px[i], y = py[i]; removeParticle(i);
         // every few grains absorbed become one new drone, right where they land
-        R.grainAcc += 1 + (Math.random() < 0.25 * lvl('fertile') ? 1 : 0);
-        const gpd = evo('gut') ? E.grainsPerDrone - 1 : E.grainsPerDrone;
+        R.grainAcc += 1 + (Math.random() < FX.twice() ? 1 : 0);
+        const gpd = FX.gpd();
         while (R.grainAcc >= gpd) { R.grainAcc -= gpd; if (addDrone(x + rnd(-1, 1), y + rnd(-1, 1))) R.spawned++; }
         R.eaten++; absorbed++; R.O += CONFIG.run.obsDish / totalGrains * maskF();
       }
@@ -634,7 +718,7 @@ function step(dt) {
   if (R.pulse) {
     R.pulse.t -= dt;
     if (R.pulse.phase === 'contract' && R.pulse.t <= 0) {
-      const c = centroid(), rad = CONFIG.pulse.radius * (1 + 0.2 * lvl('gland'));
+      const c = centroid(), rad = FX.pulseR();
       R.pulse = { phase: 'burst', t: 0.25, x: c.x, y: c.y, rad };
       R.rings.push({ x: c.x, y: c.y, r: 4, max: rad, t: 0.3, col: '79,214,204', thick: true });
       const chain = R.nextChain++;
@@ -655,9 +739,9 @@ function updateRun(dt) {
   R.t += dt;
   const m = mass(); R.peakMass = Math.max(R.peakMass, m);
   if (R.phase === 'play') {
-    R.O += CONFIG.run.obsBase * maskF() * dt;
+    R.O += CONFIG.run.obsBase * maskF() * FX.clock() * dt;
     updateBeam(dt);
-    if (dishPct() >= 99) { deps.forEach((d, k) => { if (d.alive) shatter(k, 0); }); R.phase = 'cleared'; R.phaseT = 2.0; R.cleared = true; R.cause = 'cleared';
+    if (dishPct() >= CONFIG.run.clearAt) { deps.forEach((d, k) => { if (d.alive) shatter(k, 0); }); R.phase = 'cleared'; R.phaseT = 2.0; R.cleared = true; R.cause = 'cleared';
       R.floaters.push({ x: CX, y: CY, text: 'CONSUMED', t: 2, big: true, col: '166,255,246' }); R.hit = 8; R.shake = 4; sfx.thud(true); }
     else if (n + foremen.length + coords.length === 0) { R.phase = 'over'; R.phaseT = 1.2; R.cause = 'lost'; $('hint').textContent = 'The swarm is gone.'; }
     else if (R.O >= 100) { R.O = 100; R.phase = 'silence'; R.phaseT = CONFIG.run.silence; R.beam = null; if (audio.master) audio.master.gain.setTargetAtTime(0.0001, audio.ctx.currentTime, 0.05); $('hint').textContent = 'The lab has noticed.'; }
@@ -681,14 +765,14 @@ function updateRun(dt) {
 function updateBeam(dt) {
   const B = CONFIG.beams;
   if (!R.beam) {
-    if (R.O < B.from) return;
+    if (R.O < FX.beamFrom()) return;
     R.beamT -= dt;
     if (R.beamT <= 0) {
-      const f = (R.O - B.from) / (100 - B.from);
+      const f = Math.max(0, (R.O - FX.beamFrom()) / (100 - FX.beamFrom()));
       R.beamT = B.everyLow + (B.everyHigh - B.everyLow) * f;
       const a = rnd(0, 6.283), dx = Math.cos(a), dy = Math.sin(a), c = centroid(), off = rnd(-B.aim, B.aim);
       // aim near the swarm, so the threat is real but readable
-      R.beam = { dx, dy, ox: c.x - dy * off, oy: c.y + dx * off, s: -(DISH + 30), end: DISH + 30, warn: B.warn, r: B.r * (evo('cold') ? 0.7 : 1) };
+      R.beam = { dx, dy, ox: c.x - dy * off, oy: c.y + dx * off, s: -(DISH + 30), end: DISH + 30, warn: B.warn, r: B.r * FX.beamR() };
       tone(1200, 0.25, 'square', 0.03, 900);
     }
     return;
@@ -699,7 +783,7 @@ function updateBeam(dt) {
   if (b.s > b.end) { R.beam = null; return; }
   const bx = b.ox + b.dx * b.s, by = b.oy + b.dy * b.s, r2 = b.r * b.r;
   // chance to burn per unit, scaled to game time: clipped costs a few, sitting in the light costs most
-  const pD = 1 - Math.exp(-B.burnRate * dt), pL = 1 - Math.exp(-B.burnRateLeader * dt);
+  const pD = 1 - Math.exp(-B.burnRate * FX.burn() * dt), pL = 1 - Math.exp(-B.burnRateLeader * FX.burn() * dt);
   let burned = 0;
   for (let i = n - 1; i >= 0; i--) { const ex = dx_[i] - bx, ey = dy_[i] - by; if (ex * ex + ey * ey < r2 && Math.random() < pD) { addParticle(P_VAPOR, dx_[i], dy_[i], rnd(-.2, .2), rnd(-.5, -.1), rnd(0.3, 0.6), rgba(224, 68, 58)); removeDrone(i); burned++; } }
   const burn = arr => arr.filter(o => { if ((o.x - bx) ** 2 + (o.y - by) ** 2 < r2 && Math.random() < pL) { for (let k = 0; k < 6; k++) addParticle(P_VAPOR, o.x, o.y, rnd(-.5, .5), rnd(-.8, -.1), rnd(0.4, 0.8), rgba(255, 120, 100)); burned += 10; return false; } return true; });
@@ -709,17 +793,17 @@ function updateBeam(dt) {
 }
 const pctConsumed = () => dishPct();
 function endRun() {
-  if (!R.cleared && dishPct() >= 99) { R.cleared = true; R.cause = 'cleared'; }   // the sweep came, but the dish was already eaten
-  const pct = R.cleared ? 100 : dishPct(), M = CONFIG.meta, gainedPct = pct - R.pctStart;
-  const gain = Math.floor(gainedPct * M.bpPerPct + R.foremenMade * M.bpPerForeman + R.coordsMade * M.bpPerCoord + (R.cleared ? M.dishBonus : 0));
-  meta.bp += gain; meta.runs++; meta.bestMass = Math.max(meta.bestMass, R.peakMass); R.bpGain = gain;
-  const sample = meta.dish;
-  if (R.cleared) { meta.dish++; meta.dishState = null; meta.dishRuns = 0; }
-  else { meta.dishState = deps.map(d => d.alive ? [d.grains.length / 2, Math.round(d.hp)] : [0, 0]); meta.dishRuns = (meta.dishRuns || 0) + 1; }
+  if (!R.cleared && dishPct() >= CONFIG.run.clearAt) { R.cleared = true; R.cause = 'cleared'; }   // the sweep came, but the dish was already eaten
+  const pct = R.cleared ? 100 : dishPct(), sample = meta.dish;
+  const gain = Math.round(R.eaten * CONFIG.meta.bioPerGrain * (R.cleared ? 1 + CONFIG.meta.clearBonus : 1));
+  const prevBest = meta.best[sample] || 0;
+  meta.bio += gain; meta.runs++; meta.bestMass = Math.max(meta.bestMass, R.peakMass); R.bpGain = gain;
+  meta.best[sample] = Math.max(prevBest, pct);
+  if (R.cleared) meta.dish++;
   saveMeta();
   $('endTitle').textContent = R.cleared ? `SAMPLE ${sample} CONSUMED.` : R.cause === 'lost' ? 'THE SWARM WAS BURNED.' : 'STERILIZED.';
   $('endTitle').style.color = R.cleared ? 'var(--cyan)' : '';
-  renderDish($('endCompare'), R.pctStart, pct, sample);
+  renderDish($('endCompare'), pct, prevBest, sample);
   const mm = Math.floor(R.t / 60), ss = Math.floor(R.t % 60);
   $('endStats').innerHTML = '';
   const rows = [['Run length', `${mm}:${String(ss).padStart(2, '0')}`], ['Peak mass', R.peakMass.toLocaleString('en-US')], ['Drones burned by spotlights', R.burned || 0]];
@@ -727,9 +811,10 @@ function endRun() {
   if (evo('coord')) rows.push(['Coordinators formed', R.coordsMade]);
   for (const [k, v] of rows) {
     const dt_ = document.createElement('dt'), dd = document.createElement('dd'); dt_.textContent = k; dd.textContent = v; $('endStats').append(dt_, dd); }
-  $('bpGain').textContent = `+${gain} →`;
-  renderUps();
-  $('againBtn').textContent = R.cleared ? 'EVOLVE' : `BEGIN RUN ${meta.runs + 1}`;
+  $('bpGain').textContent = `+${gain.toLocaleString('en-US')} →`;
+  $('bpTotal').textContent = meta.bio.toLocaleString('en-US');
+  R.evolved = false;
+  $('againBtn').textContent = R.cleared ? 'EVOLVE' : 'SKILL TREE';
   $('endScreen').hidden = false;
   $('hint').textContent = hintText();
 }
@@ -737,12 +822,13 @@ function hintText() {
   if (meta.dish === 1 && !meta.runs) return 'Drag anywhere to steer. Touch matter to eat it.';
   return 'Eating draws the lab\'s attention. Keep the swarm out of the red spotlights.';
 }
-function renderDish(el, before, after, sample) {
+// this run's share of the sample, against the best run on it
+function renderDish(el, pct, best, sample) {
   el.innerHTML = '';
   const row = (label, v, cls) => { const d = document.createElement('div'); d.className = 'crow ' + cls;
     d.innerHTML = `<span class="label">${label}</span><div class="track"><i style="width:${v.toFixed(1)}%"></i></div><b>${Math.floor(v)}%</b>`; el.append(d); };
-  row(`SAMPLE ${sample}`, after, 'now');
-  if (before !== null && after > before) { const d = document.createElement('p'); d.style.cssText = 'margin:0;font-size:18px;color:var(--dim)'; d.textContent = `+${Math.floor(after - before)}% this run. What you ate stays eaten.`; el.append(d); }
+  if (pct !== null) row(`SAMPLE ${sample}`, pct, 'now');
+  row(pct === null ? `BEST ON ${sample}` : 'PREV BEST', best, 'best');
 }
 function offerEvolutions() {
   const avail = CONFIG.evolutions.filter(e => !evo(e.id) && (!e.req || evo(e.req)));
@@ -751,32 +837,68 @@ function offerEvolutions() {
   let pick = core.length >= 2 && Object.keys(meta.evo).length === 0 ? avail.filter(e => core.includes(e.id)) : avail.slice().sort(() => Math.random() - 0.5).slice(0, 3);
   $('evoTitle').textContent = `SAMPLE ${meta.dish - 1} CONSUMED.`;
   const box = $('evos'); box.innerHTML = '';
-  if (!pick.length) { begin(); return; }
+  if (!pick.length) { openTree(); return; }
   for (const e of pick) {
     const el = document.createElement('div'); el.className = 'up evo';
     el.innerHTML = `<h3>${e.name.toUpperCase()}</h3><p>${e.desc}</p><button>EVOLVE</button>`;
-    el.querySelector('button').onclick = () => { meta.evo[e.id] = true; saveMeta(); tone(330, 0.5, 'sine', 0.12, 660); $('evoScreen').hidden = true; begin(); };
+    el.querySelector('button').onclick = () => { meta.evo[e.id] = true; saveMeta(); tone(330, 0.5, 'sine', 0.12, 660); $('evoScreen').hidden = true; openTree(); };
     box.append(el);
   }
   $('endScreen').hidden = true; $('evoScreen').hidden = false;
 }
-function upCost(u) { return Math.round(u.cost * Math.pow(u.grow, lvl(u.id))); }
-function renderUps() {
-  const box = $('ups'); box.innerHTML = '';
-  $('bpTotal').textContent = meta.bp;
-  for (const u of CONFIG.upgrades) {
-    if (u.needs && !evo(u.needs)) continue;
-    const L = lvl(u.id), maxed = L >= u.max, cost = upCost(u);
-    const el = document.createElement('div'); el.className = 'up';
-    el.innerHTML = `<h3>${u.name.toUpperCase()}</h3><p>${u.desc}</p><span class="pips">${'■'.repeat(L)}${'□'.repeat(u.max - L)}</span><button ${maxed || meta.bp < cost ? 'disabled' : ''}>${maxed ? 'MAX' : cost}</button>`;
-    el.querySelector('button').onclick = () => { if (maxed || meta.bp < cost) return; meta.bp -= cost; meta.up[u.id] = L + 1; saveMeta(); renderUps(); tone(520, 0.12, 'triangle', 0.06, 780); };
-    box.append(el);
-  }
+// ---------- Skill tree ----------
+const NODE = Object.fromEntries(CONFIG.tree.map(t => [t.id, t]));
+const nodeCost = t => Math.round(t.cost * Math.pow(t.grow, T(t.id)));
+function nodeState(t) {
+  if (t.id === 'root') return { root: true };
+  const L = T(t.id), [rid, rl] = t.req, reqOk = rid === 'root' || T(rid) >= rl, evoOk = !t.evo || evo(t.evo);
+  return { L, max: L >= t.max, open: reqOk && evoOk, reqOk, evoOk, cost: nodeCost(t), afford: meta.bio >= nodeCost(t) };
 }
+let selNode = 'jaw1';
+function buyNode(id) {
+  const t = NODE[id], st = nodeState(t);
+  if (!st.open || st.max || !st.afford) return false;
+  meta.bio -= st.cost; meta.tree[id] = st.L + 1; saveMeta(); return true;
+}
+function renderTree() {
+  $('bioTotal').textContent = meta.bio.toLocaleString('en-US');
+  const box = $('tree'), svg = $('treeLines');
+  box.querySelectorAll('.node').forEach(e => e.remove());
+  const pos = t => ({ x: (t.x + 0.5) / 7 * 700, y: (t.y + 0.5) / 9 * 900 });
+  svg.innerHTML = CONFIG.tree.filter(t => t.req).map(t => { const a = pos(t), b = pos(NODE[t.req[0]]), on = T(t.id) > 0;
+    return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${on ? 'on' : ''}"/>`; }).join('');
+  for (const t of CONFIG.tree) {
+    const st = nodeState(t), b = document.createElement('button');
+    b.className = 'node' + (st.root ? ' root' : st.max ? ' max' : st.L ? ' owned' : '') + (!st.root && st.open && !st.max && st.afford ? ' buy' : !st.root && st.open ? ' open' : '') + (selNode === t.id ? ' sel' : '');
+    b.style.left = ((t.x + 0.5) / 7 * 100) + '%'; b.style.top = ((t.y + 0.5) / 9 * 100) + '%';
+    b.innerHTML = `${t.short}${st.root ? '' : `<small>${st.L}/${t.max}</small>`}`;
+    b.setAttribute('aria-label', `${t.name}, level ${st.L || 0} of ${t.max}`);
+    b.onclick = () => { selNode = t.id; renderTree(); };
+    box.append(b);
+  }
+  // detail panel for the selected node
+  const t = NODE[selNode], st = nodeState(t), d = $('detail');
+  let why = '';
+  if (!st.root && !st.evoOk) why = `Needs the ${CONFIG.evolutions.find(e => e.id === t.evo).name} evolution.`;
+  else if (!st.root && !st.reqOk) why = `Needs ${NODE[t.req[0]].name} at level ${t.req[1]}.`;
+  else if (!st.root && !st.max && !st.afford) why = `Needs ${st.cost.toLocaleString('en-US')} biomass.`;
+  d.innerHTML = `<h3>${t.name.toUpperCase()}${st.root ? '' : ` · ${st.L}/${t.max}`}</h3><p>${t.desc}</p>${why ? `<p class="why">${why}</p>` : ''}` +
+    (st.root ? '' : `<button ${st.open && !st.max && st.afford ? '' : 'disabled'}>${st.max ? 'MAX' : st.cost.toLocaleString('en-US')}</button>`);
+  const bb = d.querySelector('button');
+  if (bb) bb.onclick = () => { if (buyNode(selNode)) { tone(520 + 60 * T(selNode), 0.12, 'triangle', 0.07, 780 + 60 * T(selNode)); buzz(10); renderTree(); } };
+}
+function openTree() {
+  $('endScreen').hidden = true; $('evoScreen').hidden = true; $('startScreen').hidden = true;
+  if (!NODE[selNode] || nodeState(NODE[selNode]).max) { const next = CONFIG.tree.find(t => t.id !== 'root' && nodeState(t).open && !nodeState(t).max); if (next) selNode = next.id; }
+  renderTree();
+  $('treeGo').textContent = `BEGIN RUN ${meta.runs + 1} · SAMPLE ${meta.dish}`;
+  $('treeScreen').hidden = false;
+}
+$('treeGo').onclick = () => begin();
 function begin() {
   initAudio(); if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
   if (audio.master) audio.master.gain.value = audio.on ? 0.5 : 0;
-  $('startScreen').hidden = true; $('endScreen').hidden = true; $('evoScreen').hidden = true;
+  $('startScreen').hidden = true; $('endScreen').hidden = true; $('evoScreen').hidden = true; $('treeScreen').hidden = true;
   newRun();
   $('pulseBtn').hidden = !evo('pulse');
   $('pad').hidden = meta.runs >= 3 || !matchMedia('(pointer: coarse)').matches; $('pad').classList.remove('gone');
@@ -784,7 +906,7 @@ function begin() {
   $('hint').textContent = hintText();
 }
 $('startBtn').onclick = begin;
-$('againBtn').onclick = () => { if (R && R.cleared) offerEvolutions(); else begin(); };
+$('againBtn').onclick = () => { if (R && R.cleared && !R.evolved) { R.evolved = true; offerEvolutions(); } else openTree(); };
 $('endBtn').onclick = () => { if (R && R.phase === 'play') { R.O = 100; R.cause = 'ended'; } menuOpen = false; $('menuScreen').hidden = true; };
 
 // ================= Input =================
@@ -812,7 +934,7 @@ function pulse() {
   if (!R || R.phase !== 'play' || R.pulseCD > 0 || R.pulse || !n || !evo('pulse')) return;
   R.O += CONFIG.run.obsPulse * maskF();
   R.pulse = { phase: 'contract', t: CONFIG.pulse.contract };
-  R.pulseCD = CONFIG.pulse.cooldown * Math.pow(0.85, lvl('gland'));
+  R.pulseCD = FX.pulseCD();
   tone(90, CONFIG.pulse.contract, 'sine', 0.15, 180);
 }
 $('pulseBtn').onclick = pulse;
@@ -833,13 +955,12 @@ function render(dt) {
   // matter
   for (const d of deps) {
     if (!d.alive) continue;
-    let col = d.col;
-    if (d.kind === 'unstable') { const s = 0.75 + 0.25 * Math.sin(R.t * 7 + d.seed); col = rgba(222 * s | 0, 230 * s | 0, 120 * s | 0); }
+    const pulseOn = d.kind === 'unstable' && Math.sin(R.t * 7 + d.seed) < -0.2;   // volatiles flicker
     const shake = d.crackT > 0 ? 1 : 0; d.crackT -= dt;
     const dmg = 1 - Math.max(0, d.hp) / d.max;
     for (let i = 0; i < d.grains.length; i += 2) {
       const gx = d.x + d.grains[i] + (shake ? (Math.random() < .5 ? -1 : 1) * (Math.random() < .3 ? 1 : 0) : 0), gy = d.y + d.grains[i + 1];
-      put(gx, gy, dmg > 0.05 && (i * 7 + (d.seed * 10 | 0)) % 11 < dmg * 6 ? rgba(255, 255, 255) : col);
+      put(gx, gy, dmg > 0.05 && (i * 7 + (d.seed * 10 | 0)) % 11 < dmg * 6 ? rgba(255, 255, 255) : pulseOn ? rgba(255, 255, 210) : d.gcol[i >> 1]);
     }
   }
   // particles
@@ -859,7 +980,7 @@ function render(dt) {
     g.r += (g.max - g.r) * 0.25; ctx.strokeStyle = `rgba(${g.col},${Math.min(1, g.t * 3)})`; ctx.lineWidth = g.thick ? 2 : 1;
     ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, 6.283); ctx.stroke(); ctx.lineWidth = 1;
   }
-  if (R.pulse && R.pulse.phase === 'contract') { const c = centroid(); ctx.strokeStyle = 'rgba(79,214,204,0.5)'; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(c.x, c.y, CONFIG.pulse.radius * (1 + 0.2 * lvl('gland')), 0, 6.283); ctx.stroke(); ctx.setLineDash([]); }
+  if (R.pulse && R.pulse.phase === 'contract') { const c = centroid(); ctx.strokeStyle = 'rgba(79,214,204,0.5)'; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(c.x, c.y, FX.pulseR(), 0, 6.283); ctx.stroke(); ctx.setLineDash([]); }
   if (R.beam) {
     const b = R.beam, warn = b.warn > 0, blink = warn && Math.floor(b.warn * 6) % 2 === 0;
     ctx.fillStyle = `rgba(224,68,58,${warn ? (blink ? 0.8 : 0.35) : 0.2})`;
@@ -897,7 +1018,7 @@ function hud() {
   $('mass').textContent = mass().toLocaleString('en-US');
   $('labFill').style.width = R.O.toFixed(1) + '%';
   $('labRow').classList.toggle('hot', R.O >= 80);
-  const cd = CONFIG.pulse.cooldown * Math.pow(0.85, lvl('gland'));
+  const cd = FX.pulseCD();
   $('pulseBtn').style.setProperty('--cd', (R.pulseCD / cd).toFixed(3));
   $('pulseBtn').disabled = R.phase !== 'play';
   $('pulseBtn').classList.toggle('ready', R.pulseCD <= 0 && R.phase === 'play');
@@ -925,12 +1046,19 @@ function frame(now) {
 
 // start screen
 function startScreen() {
-  $('startBtn').textContent = meta.runs ? `BEGIN RUN ${meta.runs + 1}` : 'BEGIN';
-  if (meta.runs) {
-    $('startText').textContent = `Sample ${meta.dish}. You have ${meta.bp} blueprints.`;
-    renderDish($('startCompare'), null, dishPct(), meta.dish);
-    $('endScreen').hidden = false; $('startScreen').hidden = true; $('endTitle').textContent = 'BETWEEN RUNS'; $('endTitle').style.color = '';
-    $('endStats').innerHTML = ''; renderDish($('endCompare'), null, dishPct(), meta.dish); $('bpGain').textContent = ''; renderUps(); $('againBtn').textContent = `BEGIN RUN ${meta.runs + 1}`;
+  drawLegend();
+  if (meta.runs) { openTree(); return; }
+  $('startH').textContent = `SAMPLE ${meta.dish}`;
+  $('startBtn').textContent = 'BEGIN';
+}
+// a small picture of each food, drawn with the game's own deposit code
+function drawLegend() {
+  const box = $('legend'); box.innerHTML = '';
+  for (const [kind, label] of [['speck', 'Specks: soft crumbs'], ['crystal', 'Crystals: erode slowly'], ['geode', 'Geodes: hard shell'], ['unstable', 'Volatile: may burst']]) {
+    const c = document.createElement('canvas'); c.width = 28; c.height = 28;
+    const g = c.getContext('2d'), d = makeDep(kind, { x: 14, y: 14 }, kind === 'geode' ? { r: 12, grains: [70, 70] } : null);
+    for (let i = 0; i < d.grains.length; i += 2) { const v = d.gcol[i >> 1]; g.fillStyle = `rgb(${v & 255},${(v >> 8) & 255},${(v >> 16) & 255})`; g.fillRect(14 + d.grains[i], 14 + d.grains[i + 1], 1, 1); }
+    const sp = document.createElement('span'); sp.append(c, label); box.append(sp);
   }
 }
 newRun(); R.phase = 'done';
@@ -940,8 +1068,8 @@ requestAnimationFrame(frame);
 // test hooks for the playtest bot
 window.__run = { CONFIG, get R() { return R; }, get meta() { return meta; }, get n() { return n; }, mass, pct: () => pctConsumed(), centroid,
   get deps() { return deps; }, steer: (x, y) => { R.target = { x, y }; R.touching = true; }, pulse, begin, evo, offerEvolutions, endNow: () => $('endBtn').click(),
-  chooseEvo: id => { meta.evo[id] = true; saveMeta(); }, buy: id => { const u = CONFIG.upgrades.find(v => v.id === id); const c = upCost(u); if (meta.bp >= c && lvl(id) < u.max) { meta.bp -= c; meta.up[id] = lvl(id) + 1; saveMeta(); return true; } return false; },
-  upCost: id => upCost(CONFIG.upgrades.find(v => v.id === id)), reset: () => { meta = { bp: 0, runs: 0, up: {}, dish: 1, dishState: null, evo: {}, bestMass: 0 }; saveMeta(); } };
+  chooseEvo: id => { meta.evo[id] = true; saveMeta(); }, buyNode, nodeState: id => nodeState(NODE[id]), nodes: () => CONFIG.tree.map(t => t.id),
+  reset: () => { meta = freshMeta(); saveMeta(); } };
 })();
 </script>
 </body>

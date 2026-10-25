@@ -1,6 +1,6 @@
 // Multi-run playtest for the Mother Swarm run game.
 // Plays runs back to back: steers, dodges spotlights, ends a run when it stops making progress,
-// buys upgrades between runs and picks evolutions when a sample is cleared. One line per run.
+// buys skill-tree nodes between runs and picks evolutions when a sample is cleared. One line per run.
 // Usage: node tools/runtest.js <game.html> [runs=10] [speed=6] [policy=good|average]
 const { chromium } = require('playwright');
 const path = require('path');
@@ -57,9 +57,14 @@ function bot(policy) {
     for (;;) { await p.waitForTimeout(1000); s = await p.evaluate(() => { const r = window.__run, R = r.R; return { phase: R.phase, t: R.t, pct: r.pct(), start: R.pctStart, peak: R.peakMass, F: R.foremenMade, C: R.coordsMade, bp: R.bpGain, cause: R.cause, cleared: R.cleared, burned: R.burned || 0 }; }); if (s.phase === 'done') break; }
     let picked = '';
     if (s.cleared) picked = await p.evaluate(() => { const r = window.__run; for (const id of ['foreman', 'chain', 'pulse', 'coord', 'gut', 'cold']) { const e = r.CONFIG.evolutions.find(v => v.id === id); if (!r.evo(id) && (!e.req || r.evo(e.req))) { r.chooseEvo(id); return id; } } return ''; });
-    const bought = await p.evaluate(() => { const r = window.__run, out = []; for (;;) { const ups = r.CONFIG.upgrades.filter(u => (r.meta.up[u.id] || 0) < u.max && (!u.needs || r.evo(u.needs))).sort((a, b) => r.upCost(a.id) - r.upCost(b.id)); if (!ups.length || !r.buy(ups[0].id)) break; out.push(ups[0].id); } return out; });
+    // spend biomass in the skill tree: cheapest available node first
+    const bought = await p.evaluate(() => { const r = window.__run, out = []; for (;;) {
+      const open = r.nodes().filter(id => id !== 'root').map(id => ({ id, st: r.nodeState(id) })).filter(o => o.st.open && !o.st.max && o.st.afford).sort((a, b) => a.st.cost - b.st.cost);
+      if (!open.length || !r.buyNode(open[0].id)) break; out.push(open[0].id); } return out; });
+    const bio = await p.evaluate(() => window.__run.meta.bio);
     const mm = Math.floor(s.t / 60) + ':' + String(Math.floor(s.t % 60)).padStart(2, '0');
-    console.log(`run ${String(run).padStart(2)}  sample ${sample}  ${s.start.toFixed(0).padStart(3)}% -> ${s.pct.toFixed(0).padStart(3)}%  ${mm}  ${s.cause.padEnd(7)} burned ${String(s.burned).padStart(3)}  peak ${s.peak}  F ${s.F} C ${s.C}  +${s.bp} bp  ${picked ? 'EVOLVED ' + picked + '  ' : ''}bought [${bought.join(', ')}]`);
+    const counts = {}; for (const id of bought) counts[id] = (counts[id] || 0) + 1;
+    console.log(`run ${String(run).padStart(2)}  sample ${sample}  ate ${s.pct.toFixed(0).padStart(3)}%  ${mm}  ${s.cause.padEnd(7)} burned ${String(s.burned).padStart(3)}  peak ${s.peak}  F ${s.F} C ${s.C}  +${s.bp} bio (left ${bio})  ${picked ? 'EVOLVED ' + picked + '  ' : ''}bought ${Object.entries(counts).map(([k, v]) => k + (v > 1 ? '×' + v : '')).join(' ') || '-'}`);
   }
   if (errs.length) console.log('errors', errs.slice(0, 3));
   await b.close();
