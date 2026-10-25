@@ -38,9 +38,23 @@ button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 .frame { position: relative; will-change: transform; }
 .frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.22) 2px 3px); }
 canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
-.bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+.bottom { display: flex; align-items: center; justify-content: flex-start; gap: 14px;
   padding-block: 8px 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.hint { font-size: 18px; color: var(--dim); line-height: 1.1; max-width: 22ch; }
+.hint { font-size: 18px; color: var(--dim); line-height: 1.1; max-width: 18ch; margin: 0; }
+body.lefty .bottom { flex-direction: row-reverse; }
+body.lefty .bottom .hint { text-align: right; }
+/* Trackpad hint: where to drag. Shown for the first runs, never blocks touches. */
+.pad { position: absolute; z-index: 3; bottom: max(24px, env(safe-area-inset-bottom, 0px)); right: max(20px, env(safe-area-inset-right, 0px));
+  width: 132px; height: 132px; border: 1px dashed rgba(79,214,204,.45); border-radius: 50%; display: grid; place-items: center; text-align: center;
+  font-family: var(--f-pixel); font-size: 9px; letter-spacing: .1em; color: rgba(79,214,204,.7); pointer-events: none; transition: opacity .6s; }
+body.lefty .pad { right: auto; left: max(20px, env(safe-area-inset-left, 0px)); }
+.pad.gone { opacity: 0; }
+.seg { display: flex; gap: 6px; }
+.seg button { min-height: 44px; min-width: 76px; background: var(--void); border: 1px solid var(--rim); color: var(--pale); font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; }
+.seg button[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--rim); padding-top: 10px; font-size: 20px; }
+.ghost { min-height: 48px; background: none; border: 1px solid var(--rim); color: var(--pale); font-family: var(--f-pixel); font-size: 11px; letter-spacing: .1em; }
+.ghost.danger { border-color: var(--threat); color: var(--threat); }
 .pulse { --cd: 0; width: 84px; height: 84px; border-radius: 50%; border: 2px solid var(--cyan); background: var(--void);
   font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; color: var(--cyan); position: relative; flex: none; }
 .pulse::before { content: ""; position: absolute; inset: -2px; border-radius: 50%;
@@ -74,8 +88,6 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .up .pips { font-size: 15px; color: var(--cyan); letter-spacing: 2px; }
 .up button { grid-row: 1 / span 3; grid-column: 2; min-width: 70px; min-height: 48px; background: var(--void); border: 1px solid var(--mind); color: var(--mind); font-size: 20px; }
 .up button:disabled { border-color: var(--rim); color: var(--dim); cursor: default; }
-.left { display: grid; gap: 6px; min-width: 0; }
-.endrun { justify-self: start; min-height: 40px; padding: 4px 12px; background: none; border: 1px solid var(--rim); color: var(--dim); font-family: var(--f-pixel); font-size: 9px; letter-spacing: .1em; }
 .evo { border-color: var(--cyan); }
 .evo button { border-color: var(--cyan); color: var(--cyan); font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; }
 @media (prefers-reduced-motion: reduce) { .frame { transform: none !important; } }
@@ -85,16 +97,29 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   <header class="hud">
     <div><div class="label" id="dishLbl">SAMPLE 1 · CONSUMED</div><div class="big"><span id="pct">0</span><small>%</small></div></div>
     <div class="stat"><span class="label">MASS</span><b id="mass">0</b></div>
-    <button class="icon" id="muteBtn" aria-label="Sound on or off">SND</button>
+    <button class="icon" id="menuBtn" aria-label="Menu">MENU</button>
     <div class="lab" id="labRow"><span class="label">LAB ATTENTION</span><div class="bar"><div class="fill" id="labFill"></div></div></div>
   </header>
   <main class="stage" id="stage">
     <div class="frame" id="frame"><canvas id="cv" width="180" height="240" aria-label="Petri dish. Drag to steer the swarm."></canvas></div>
   </main>
   <footer class="bottom">
-    <div class="left"><p class="hint" id="hint">Drag to steer. Touch matter to eat it.</p><button class="endrun" id="endBtn">END RUN</button></div>
     <button class="pulse" id="pulseBtn" aria-label="Consume pulse"><span>PULSE</span></button>
+    <p class="hint" id="hint">Drag anywhere to steer. Touch matter to eat it.</p>
   </footer>
+  <div class="pad" id="pad" hidden>DRAG<br>HERE<br>TO STEER</div>
+
+  <section class="screen" id="menuScreen" hidden>
+    <div class="panel" role="dialog" aria-labelledby="menuH">
+      <h1 id="menuH">MENU</h1>
+      <div class="mrow"><span>Sound</span><div class="seg" id="sndSeg"><button data-v="on">ON</button><button data-v="off">OFF</button></div></div>
+      <div class="mrow"><span>Steering hand</span><div class="seg" id="handSeg"><button data-v="right">RIGHT</button><button data-v="left">LEFT</button></div></div>
+      <p style="color:var(--dim);font-size:18px">Drag anywhere to steer: the swarm moves with your drag, like a trackpad. Powers sit on the other side.</p>
+      <button class="ghost" id="endBtn">END THIS RUN</button>
+      <button class="ghost danger" id="wipeBtn">ERASE ALL PROGRESS</button>
+      <button class="go" id="closeMenu">BACK TO THE DISH</button>
+    </div>
+  </section>
 
   <section class="screen" id="startScreen">
     <div class="panel">
@@ -240,7 +265,26 @@ const sfx = {
   alarm() { tone(880, 1.4, 'square', 0.04, 620); },
   sweep() { noise(2.2, 2500, 0.12, 0.4); tone(55, 2.2, 'sawtooth', 0.12, 35); },
 };
-$('muteBtn').onclick = () => { audio.on = !audio.on; $('muteBtn').textContent = audio.on ? 'SND' : 'OFF'; if (audio.master) audio.master.gain.value = audio.on ? 0.5 : 0; };
+// ---- player preferences (sound, steering hand), saved per browser ----
+const PREF_KEY = 'mother-swarm-prefs-v1';
+let prefs = { sound: true, hand: 'right', steers: 0 };
+try { const p0 = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); if (p0) prefs = Object.assign(prefs, p0); } catch (e) {}
+const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} };
+function applyPrefs() {
+  audio.on = prefs.sound; if (audio.master) audio.master.gain.value = audio.on ? 0.5 : 0;
+  document.body.classList.toggle('lefty', prefs.hand === 'left');
+  for (const b of $('sndSeg').children) b.setAttribute('aria-pressed', (b.dataset.v === 'on') === prefs.sound);
+  for (const b of $('handSeg').children) b.setAttribute('aria-pressed', b.dataset.v === prefs.hand);
+}
+$('sndSeg').onclick = e => { const v = e.target.closest('button'); if (!v) return; prefs.sound = v.dataset.v === 'on'; savePrefs(); applyPrefs(); };
+$('handSeg').onclick = e => { const v = e.target.closest('button'); if (!v) return; prefs.hand = v.dataset.v; savePrefs(); applyPrefs(); };
+let menuOpen = false, wipeArmed = false;
+$('menuBtn').onclick = () => { menuOpen = true; wipeArmed = false; $('wipeBtn').textContent = 'ERASE ALL PROGRESS'; $('endBtn').disabled = !(R && R.phase === 'play'); $('menuScreen').hidden = false; };
+$('closeMenu').onclick = () => { menuOpen = false; $('menuScreen').hidden = true; };
+$('wipeBtn').onclick = () => {
+  if (!wipeArmed) { wipeArmed = true; $('wipeBtn').textContent = 'TAP AGAIN TO ERASE'; return; }
+  meta = { bp: 0, runs: 0, up: {}, dish: 1, dishState: null, evo: {}, bestMass: 0 }; saveMeta(); location.reload();
+};
 
 // ================= World state =================
 const MAXD = CONFIG.swarm.max;
@@ -674,7 +718,7 @@ function endRun() {
   $('hint').textContent = hintText();
 }
 function hintText() {
-  if (meta.dish === 1 && !meta.runs) return 'Drag to steer. Touch matter to eat it.';
+  if (meta.dish === 1 && !meta.runs) return 'Drag anywhere to steer. Touch matter to eat it.';
   return 'Eating draws the lab\'s attention. Keep the swarm out of the red spotlights.';
 }
 function renderDish(el, before, after, sample) {
@@ -719,19 +763,35 @@ function begin() {
   $('startScreen').hidden = true; $('endScreen').hidden = true; $('evoScreen').hidden = true;
   newRun();
   $('pulseBtn').hidden = !evo('pulse');
+  $('pad').hidden = meta.runs >= 3 || !matchMedia('(pointer: coarse)').matches; $('pad').classList.remove('gone');
   $('dishLbl').textContent = `SAMPLE ${meta.dish} · CONSUMED`;
   $('hint').textContent = hintText();
 }
 $('startBtn').onclick = begin;
 $('againBtn').onclick = () => { if (R && R.cleared) offerEvolutions(); else begin(); };
-$('endBtn').onclick = () => { if (R && R.phase === 'play') { R.O = 100; R.cause = 'ended'; } };
+$('endBtn').onclick = () => { if (R && R.phase === 'play') { R.O = 100; R.cause = 'ended'; } menuOpen = false; $('menuScreen').hidden = true; };
 
 // ================= Input =================
 const toLogical = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; };
-$('stage').addEventListener('pointerdown', e => { if (!R || R.phase !== 'play') return; initAudio(); R.touching = true; try { $('stage').setPointerCapture(e.pointerId); } catch (x) {} R.target = toLogical(e); });
-$('stage').addEventListener('pointermove', e => { if (R && R.touching) R.target = toLogical(e); });
-const up = () => { if (R) R.touching = false; };
-$('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
+// Touch steers like a trackpad: drag anywhere (not on a button) and the swarm's target moves with the drag,
+// so the thumb never covers the swarm. A mouse on the dish aims directly.
+let drag = null;
+const clampTarget = t => { const x = t.x - CX, y = t.y - CY, d = Math.hypot(x, y), m = DISH - 3; return d > m ? { x: CX + x / d * m, y: CY + y / d * m } : t; };
+$('app').addEventListener('pointerdown', e => {
+  if (!R || R.phase !== 'play' || menuOpen || e.target.closest('button, .screen')) return;
+  initAudio();
+  if (e.pointerType === 'mouse') { if (e.target !== cv) return; drag = { id: e.pointerId, abs: true }; R.target = clampTarget(toLogical(e)); }
+  else drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, tx: R.target.x, ty: R.target.y, k: W / cv.getBoundingClientRect().width * 1.4 };
+  R.touching = true; try { $('app').setPointerCapture(e.pointerId); } catch (x) {}
+  if (!prefs.steers) { prefs.steers = 1; savePrefs(); }
+});
+$('app').addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id || !R) return;
+  R.target = drag.abs ? clampTarget(toLogical(e)) : clampTarget({ x: drag.tx + (e.clientX - drag.sx) * drag.k, y: drag.ty + (e.clientY - drag.sy) * drag.k });
+  if (!$('pad').hidden && !drag.abs) $('pad').classList.add('gone');
+});
+const up = e => { if (drag && e.pointerId === drag.id) { drag = null; if (R) R.touching = false; } };
+$('app').addEventListener('pointerup', up); $('app').addEventListener('pointercancel', up);
 function pulse() {
   if (!R || R.phase !== 'play' || R.pulseCD > 0 || R.pulse || !n || !evo('pulse')) return;
   R.O += CONFIG.run.obsPulse * maskF();
@@ -824,7 +884,6 @@ function hud() {
   const cd = CONFIG.pulse.cooldown * Math.pow(0.85, lvl('gland'));
   $('pulseBtn').style.setProperty('--cd', (R.pulseCD / cd).toFixed(3));
   $('pulseBtn').disabled = R.phase !== 'play';
-  $('endBtn').disabled = R.phase !== 'play';
   $('pulseBtn').classList.toggle('ready', R.pulseCD <= 0 && R.phase === 'play');
   if (audio.humGain) audio.humGain.gain.value = R.phase === 'silence' ? 0 : Math.min(0.12, 0.02 + mass() / 15000);
 }
@@ -834,7 +893,7 @@ let last = performance.now();
 window.__runSpeed = 1;
 function frame(now) {
   const real = Math.min(0.05, (now - last) / 1000); last = now;
-  if (R && R.phase !== 'done') {
+  if (R && R.phase !== 'done' && !menuOpen) {
     const dt = real * window.__runSpeed;
     if (R.hit > 0) { R.hit -= 1; }        // hit-stop: freeze the simulation for a few frames
     else {
@@ -859,7 +918,7 @@ function startScreen() {
   }
 }
 newRun(); R.phase = 'done';
-fit(); startScreen(); $('pulseBtn').hidden = !evo('pulse');
+fit(); startScreen(); applyPrefs(); $('pulseBtn').hidden = !evo('pulse');
 requestAnimationFrame(frame);
 
 // test hooks for the playtest bot
