@@ -1,4 +1,4 @@
-"""Build the GitHub Pages files from src/: the zone 1 game (index.html), the Swarm Lab (lab/index.html) and the run prototype (run/index.html).
+"""Build the GitHub Pages files from src/: the run game (index.html), the original zone 1 game (zone1/index.html) and the Swarm Lab (lab/index.html).
 
 The sources are written for Claude artifacts, which wrap each page in a skeleton
 (doctype, charset, mobile viewport, safe-area padding). A static host serves
@@ -10,9 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES = {
-    "src/mother-swarm.html": ("index.html", "Mother Swarm"),
+    "src/run.html": ("index.html", "Mother Swarm"),
+    "src/mother-swarm.html": ("zone1/index.html", "Mother Swarm Zone 1"),
     "src/swarm-lab.html": ("lab/index.html", "Swarm Lab"),
-    "src/run.html": ("run/index.html", "Mother Swarm Runs"),
 }
 
 TEMPLATE = """<!doctype html>
