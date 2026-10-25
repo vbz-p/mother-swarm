@@ -125,10 +125,10 @@ const CONFIG = {
             foreman: { pull: 0.022, coh: 0.0075, jit: 0.07, maxV: 1.25, size: 3 },
             coord: { pull: 0.024, coh: 0.015, jit: 0.04, maxV: 1.35, size: 5, halo: 8 } },
   merge:  { cell: 10, count: 12, every: 0.2, orbiters: 10, foremanMass: 12, coordFrom: 6, coordRadius: 10, coordMass: 80 },
-  eat:    { drone: 1, foreman: 6, coord: 25, reach: 1.5, outTime: 0.16, suckAccel: 0.32, absorbDist: 2.5, grainsPerDrone: 5 },
+  eat:    { drone: 1, foreman: 6, coord: 25, reach: 1.5, outTime: 0.16, suckAccel: 0.32, absorbDist: 2.5, grainsPerDrone: 5, chipCore: 0.15 },
   matter: { speck:    { count: 50, grains: [5, 9],    tough: 1,    r: 3,  rgb: [214, 204, 168] },
-            crystal:  { count: 22, grains: [26, 40],  tough: 2500,  r: 7,  rgb: [234, 230, 210] },
-            geode:    { count: 5,  grains: [90, 120], tough: 14000,  r: 12, rgb: [190, 182, 150] },
+            crystal:  { count: 22, grains: [26, 40],  tough: 2500, chip: true,  r: 7,  rgb: [234, 230, 210] },
+            geode:    { count: 5,  grains: [90, 120], tough: 9000, chip: true,  r: 12, rgb: [190, 182, 150] },
             unstable: { count: 12, grains: [12, 18],  tough: 2,    r: 4,  rgb: [222, 226, 120], frags: [8, 12], fragDmg: 25, fragSpeed: 1.5, fragLife: 0.3 } },
   pulse:  { radius: 24, cooldown: 15, contract: 0.32, damage: 150, push: 1.6 },
   juice:  { shakeMerge: 2, shakeCoord: 5, shakeChain: 1.2, hitMerge: 3, hitCoord: 7, hitChain: 4, comboWindow: 0.7 },
@@ -198,6 +198,7 @@ function noise(dur, freq, gain = 0.1, q = 1) {
 const sfx = {
   absorb(combo) { const A = audio.ctx; if (!A) return; const now = A.currentTime; if (now - audio.lastBlip < 0.035) return; audio.lastBlip = now;
     tone(260 * Math.pow(2, Math.min(combo, 72) / 24), 0.06, 'triangle', 0.035); },
+  chip() { const A = audio.ctx; if (!A) return; if (A.currentTime - (audio.lastChip || 0) < 0.05) return; audio.lastChip = A.currentTime; noise(0.03, 2600, 0.04, 3); },
   crack(size) { noise(0.08 + size * 0.002, 1800 - Math.min(size, 100) * 10, 0.12, 2); },
   burst() { noise(0.18, 700, 0.18, 0.8); tone(180, 0.15, 'square', 0.03, 90); },
   thud(big) { tone(big ? 70 : 95, big ? 0.5 : 0.28, 'sine', big ? 0.5 : 0.32, big ? 28 : 40); noise(big ? 0.3 : 0.15, 120, big ? 0.3 : 0.18, 0.7); },
@@ -250,9 +251,12 @@ function removeParticle(i) { np--; if (i !== np) { ptype[i] = ptype[np]; px[i] =
 // ================= Matter =================
 function makeDep(kind, pos) {
   const T = CONFIG.matter[kind], g = Math.round(rnd(T.grains[0], T.grains[1])), grains = [];
-  for (let i = 0; i < g; i++) { const a = rnd(0, 6.283), d = T.r * Math.sqrt(Math.random()); grains.push(Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * (kind === 'crystal' ? 0.75 : 1))); }
+  const pts = [];
+  for (let i = 0; i < g; i++) { const a = rnd(0, 6.283), d = T.r * Math.sqrt(Math.random()); pts.push([Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * (kind === 'crystal' ? 0.75 : 1))]); }
+  pts.sort((p, q) => (p[0] * p[0] + p[1] * p[1]) - (q[0] * q[0] + q[1] * q[1]));   // inner first, so the outer edge chips off first
+  for (const [x, y] of pts) grains.push(x, y);
   const shade = rnd(0.85, 1.05), [r, gg, b] = T.rgb;
-  return { kind, x: Math.round(pos.x), y: Math.round(pos.y), r: T.r, hp: T.tough, max: T.tough, grains, col: rgba(Math.min(255, r * shade) | 0, Math.min(255, gg * shade) | 0, Math.min(255, b * shade) | 0),
+  return { kind, x: Math.round(pos.x), y: Math.round(pos.y), r: T.r, hp: T.tough, max: T.tough, grains, g0: g, chip: !!T.chip, col: rgba(Math.min(255, r * shade) | 0, Math.min(255, gg * shade) | 0, Math.min(255, b * shade) | 0),
     alive: true, crackT: 0, seed: Math.random() * 6 };
 }
 function freeSpot(r, near) {
@@ -298,7 +302,23 @@ function depAt(x, y, extra) {
 function damage(k, amt, chain) {
   const d = deps[k]; if (!d.alive) return;
   d.hp -= amt; d.crackT = 0.12;
-  if (d.hp <= 0) shatter(k, chain);
+  if (d.hp <= 0) { shatter(k, chain); return; }
+  // Big deposits erode: grains chip off the outer edge as damage builds, the last part shatters.
+  if (d.chip) {
+    const keep = Math.ceil(d.g0 * (CONFIG.eat.chipCore + (1 - CONFIG.eat.chipCore) * d.hp / d.max));
+    let chipped = 0;
+    while (d.grains.length / 2 > keep) {
+      const gy = d.grains.pop(), gx = d.grains.pop(), a = Math.atan2(gy, gx) + rnd(-.4, .4), sp = rnd(0.4, 0.9);
+      addParticle(P_OUT, d.x + gx, d.y + gy, Math.cos(a) * sp, Math.sin(a) * sp, CONFIG.eat.outTime, d.col, chain);
+      chipped++;
+    }
+    if (chipped) {
+      const n2 = d.grains.length; let rr = 1;
+      if (n2) rr = Math.hypot(d.grains[n2 - 2], d.grains[n2 - 1]) + 1;
+      d.r = Math.max(2, Math.min(d.r, rr));
+      sfx.chip();
+    }
+  }
 }
 function shatter(k, chain) {
   const d = deps[k]; if (!d.alive) return;
