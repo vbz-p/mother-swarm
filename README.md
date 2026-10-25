@@ -2,7 +2,10 @@
 
 An eerie pixel-art incremental game for phones. You are one self-aware nanobot in a petri dish. Grow, steer and organize a swarm, stay hidden from the lab, and eat your way out through the glass.
 
-This repository holds a playable proof of concept of **zone 1 (the petri dish)** and the design documents behind it.
+This repository holds two playable prototypes and the design documents behind them:
+
+- **Runs** (`/run/`): the new direction. Short, physical runs: eat, cascade, merge, get sterilized, upgrade, go again.
+- **Zone 1** (root): the original management/idle proof of concept, kept for comparison.
 
 ## Play
 
@@ -19,6 +22,10 @@ Settings has a ×5 playtest clock and a restart button. Progress saves in the br
 
 | Path | What it is |
 | --- | --- |
+| `run/index.html` | **New direction prototype**: 3–4 minute runs, eat, cascade, merge, get sterilized, upgrade (built, do not edit) |
+| `src/run.html` | Run prototype source; all tuning numbers are in its `CONFIG` object |
+| `docs/new-direction.md` | The new design direction the run prototype follows |
+| `tools/runtest.js` | Multi-run playtest for the run prototype: plays runs back to back, buys upgrades, prints % consumed per run |
 | `index.html` | The game as served by GitHub Pages (built, do not edit) |
 | `src/mother-swarm.html` | Game source, in Claude artifact format |
 | `lab/index.html` | Swarm Lab: three test dishes with tuning sliders (built, do not edit) |
