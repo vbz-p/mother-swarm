@@ -15,9 +15,10 @@ Play at https://vbz-p.github.io/mother-swarm/, or open `index.html` in a browser
 - **Steer:** drag anywhere on the dish; the swarm follows your finger.
 - **Eat:** touch matter to crack it. Its grains are sucked in and grow new drones.
 - **Chain:** pulsing yellow deposits burst and set off their neighbours.
-- **Merge:** crowd drones together and they collapse into a Foreman; crowd Foremen and they become a Coordinator.
-- **Pulse:** the round button (or Space) bursts the swarm outward and cracks everything nearby.
-- **The sweep:** when Lab Attention fills, a UV sweep burns the dish. Spend blueprints on upgrades and go again. Progress saves in the browser.
+- **Spotlights:** a red dashed line shows where the lab's light will pass. Every drone it touches burns.
+- **The sweep:** when Lab Attention fills, a UV sweep burns the dish. Eating, merging and pulsing all draw attention. END RUN ends a run whenever you like.
+- **Samples:** what you eat stays eaten. Clear a sample to evolve (Foreman, Chain Digestion, Consume Pulse, and more) and move on to the next one.
+- **Upgrades:** spend blueprints between runs. Progress saves in the browser.
 
 The original zone 1 game is at `/zone1/`; its settings have a ×5 playtest clock and a restart button.
 
@@ -34,7 +35,8 @@ The original zone 1 game is at `/zone1/`; its settings have a ×5 playtest clock
 | `lab/index.html` | Swarm Lab: three test dishes with tuning sliders (built, do not edit) |
 | `src/swarm-lab.html` | Swarm Lab source |
 | `tools/build_pages.py` | Wraps the sources in `src/` into the standalone pages above |
-| `docs/design-doc.md` | Game design document, v2 |
+| `docs/design-doc.md` | Game design document, v3: samples, evolutions, spotlights and the tuned numbers |
+| `docs/design-doc-v2-zone1.md` | The earlier v2 design doc for the zone 1 game |
 | `docs/balance-review.md` | Zone 1 economy review and the changes it led to |
 | `tools/playtest.js` | Automated playtest: plays the real game headless and prints a milestone timeline |
 | `tools/sim2.py` | Early pacing simulator (superseded by the playtest bot) |
